@@ -73,8 +73,83 @@ object EnStrings : Strings() {
         "cat.headers" to "HEADERS",
         "cat.cookies" to "COOKIES",
         "cat.tls" to "TLS",
+        "cat.dns" to "DNS",
+        "cat.content" to "CONTENT",
         "cat.disclosure" to "DISCLOSURE",
         "cat.general" to "GENERAL",
+
+        // -------------------------------------------------------- grade & words
+        "ui.grade" to "GRADE",
+        "word.yes" to "yes",
+        "word.no" to "no",
+
+        // ----------------------------------------------------- new UI sections
+        "prog.dns" to "Resolving DNS records for %s …",
+        "ui.sec.dns" to "DNS",
+        "ui.dns.unavailable" to "DNS COULD NOT BE RESOLVED",
+        "ui.dns.caa" to "CAA",
+        "ui.dns.dnssec" to "DNSSEC",
+        "ui.dns.spf" to "SPF",
+        "ui.dns.dmarc" to "DMARC",
+        "ui.tls.key" to "PUBLIC KEY",
+        "ui.tls.sig" to "SIGNATURE",
+        "ui.tls.chain" to "CHAIN LENGTH",
+        "ui.tls.covers" to "COVERS HOST",
+
+        // -------------------------------------------------- certificate findings
+        "f.certweaksig.title" to "Weak certificate signature",
+        "f.certweaksig.detail" to "The certificate is signed with %s, which relies on a " +
+            "collision-broken hash.",
+        "f.certweaksig.fix" to "Reissue the certificate with an SHA-256 (or stronger) signature.",
+
+        "f.certweakkey.title" to "Under-strength certificate key",
+        "f.certweakkey.detail" to "The certificate uses a %s key of only %d bits.",
+        "f.certweakkey.fix" to "Use at least RSA 2048 or an EC P-256 key.",
+
+        "f.certnohost.title" to "Host not listed in the certificate",
+        "f.certnohost.detail" to "The presented certificate's SAN entries do not cover the " +
+            "requested host. A browser would reject it.",
+        "f.certnohost.fix" to "Issue a certificate whose SAN includes this host.",
+
+        "f.tlsprofile.key" to "Key: %s %d-bit. ",
+        "f.tlsprofile.sig" to "Signature: %s. ",
+        "f.tlsprofile.chain" to "Chain length: %d. ",
+
+        // ------------------------------------------------------- mixed content
+        "f.mixed.title" to "Mixed content: %d plain-HTTP resource(s)",
+        "f.mixed.detail" to "This HTTPS page references resources over http://:\n%s",
+        "f.mixed.fix" to "Load all subresources over https:// (or protocol-relative URLs).",
+
+        // ----------------------------------------------------------- DNS findings
+        "f.nocaa.title" to "No CAA record",
+        "f.nocaa.detail" to "No Certification Authority Authorization record. Any CA may issue " +
+            "certificates for this domain.",
+        "f.nocaa.fix" to "Publish a CAA record naming your permitted issuer(s).",
+
+        "f.nodnssec.title" to "DNSSEC not enabled",
+        "f.nodnssec.detail" to "Responses are not DNSSEC-authenticated, so DNS answers can be " +
+            "spoofed.",
+        "f.nodnssec.fix" to "Enable DNSSEC signing at your DNS provider.",
+
+        "f.nodmarc.title" to "No DMARC policy",
+        "f.nodmarc.detail" to "No _dmarc record. Attackers can spoof mail from this domain.",
+        "f.nodmarc.fix" to "Publish a DMARC record, building up to p=reject.",
+
+        "f.dmarcnone.title" to "DMARC policy is p=none",
+        "f.dmarcnone.detail" to "DMARC is published but only monitors; it does not block spoofed " +
+            "mail.",
+        "f.dmarcnone.fix" to "Move the policy to quarantine, then reject.",
+
+        "f.nospf.title" to "No SPF record",
+        "f.nospf.detail" to "No v=spf1 TXT record. Receivers cannot check which hosts may send " +
+            "mail for this domain.",
+        "f.nospf.fix" to "Publish an SPF record listing your legitimate senders.",
+
+        "f.dnsprofile.title" to "DNS profile",
+        "f.dnsprofile.caa" to "CAA records: %d. ",
+        "f.dnsprofile.dnssec" to "DNSSEC: %s. ",
+        "f.dnsprofile.spf" to "SPF: %s. ",
+        "f.dnsprofile.dmarc" to "DMARC: %s.",
 
         // --------------------------------------------------------------- progress
         "prog.start" to "Starting …",

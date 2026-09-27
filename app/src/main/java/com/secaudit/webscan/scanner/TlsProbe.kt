@@ -5,6 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
 import java.security.cert.X509Certificate
+import java.security.interfaces.ECPublicKey
+import java.security.interfaces.RSAPublicKey
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SNIServerName
@@ -45,6 +47,25 @@ class TlsProbe {
             if (IPV4.matches(host)) return false          // IPv4 literal
             return HOSTNAME.matches(host)
         }
+
+        /**
+         * Whether [host] is covered by the certificate's SAN dNSName entries,
+         * with single-label wildcard matching (`*.example.com` covers `a.example.com`
+         * but not `example.com` or `a.b.example.com`).
+         */
+        internal fun hostMatchesSan(host: String, sans: List<String>): Boolean {
+            val h = host.lowercase().trimEnd('.')
+            return sans.any { raw ->
+                val s = raw.lowercase().trimEnd('.')
+                if (s.startsWith("*.")) {
+                    val suffix = s.substring(1)             // ".example.com"
+                    val dot = h.indexOf('.')
+                    dot > 0 && h.substring(dot) == suffix
+                } else {
+                    s == h
+                }
+            }
+        }
     }
 
     suspend fun probe(host: String, port: Int): TlsInfo = withContext(Dispatchers.IO) {
@@ -55,6 +76,7 @@ class TlsProbe {
         var bestVersion: String? = null
         var cipherSuite: String? = null
         var certificate: X509Certificate? = null
+        var chainLength = 0
         var firstError: String? = null
 
         for (version in CANDIDATES) {
@@ -64,6 +86,7 @@ class TlsProbe {
                 bestVersion = version
                 cipherSuite = result.cipherSuite
                 result.certificate?.let { certificate = it }
+                if (result.chainLength > 0) chainLength = result.chainLength
             } catch (e: UnsupportedVersionException) {
                 untestable += version
             } catch (t: Throwable) {
@@ -74,6 +97,7 @@ class TlsProbe {
 
         val cert = certificate
         val expiresAt = cert?.notAfter?.time
+        val sanNames = cert?.let(::dnsAltNames).orEmpty()
 
         TlsInfo(
             accepted = accepted,
@@ -87,9 +111,28 @@ class TlsProbe {
             certDaysRemaining = expiresAt?.let {
                 TimeUnit.MILLISECONDS.toDays(it - System.currentTimeMillis())
             },
-            certAltNames = cert?.subjectAlternativeNames?.size ?: 0,
+            certAltNames = sanNames.size,
+            certSigAlg = cert?.sigAlgName,
+            certKeyType = cert?.publicKey?.algorithm,
+            certKeyBits = cert?.let(::keyBits) ?: 0,
+            certChainLength = chainLength,
+            certCoversHost = if (sanNames.isEmpty()) null else hostMatchesSan(host, sanNames),
             error = if (accepted.isEmpty()) firstError ?: "No TLS handshake succeeded." else null
         )
+    }
+
+    private fun dnsAltNames(cert: X509Certificate): List<String> = try {
+        cert.subjectAlternativeNames.orEmpty()
+            .filter { (it.getOrNull(0) as? Int) == 2 }          // 2 = dNSName
+            .mapNotNull { it.getOrNull(1) as? String }
+    } catch (t: Throwable) {
+        emptyList()
+    }
+
+    private fun keyBits(cert: X509Certificate): Int = when (val key = cert.publicKey) {
+        is RSAPublicKey -> key.modulus.bitLength()
+        is ECPublicKey -> key.params.curve.field.fieldSize
+        else -> 0
     }
 
     /** Raised when the device itself cannot speak a version, which is not a server verdict. */
@@ -98,7 +141,8 @@ class TlsProbe {
 
     private class HandshakeResult(
         val cipherSuite: String?,
-        val certificate: X509Certificate?
+        val certificate: X509Certificate?,
+        val chainLength: Int
     )
 
     private fun handshake(host: String, port: Int, version: String): HandshakeResult {
@@ -117,9 +161,11 @@ class TlsProbe {
             socket.startHandshake()
 
             val session = socket.session
+            val chain = session.peerCertificates
             return HandshakeResult(
                 cipherSuite = session.cipherSuite,
-                certificate = session.peerCertificates.firstOrNull() as? X509Certificate
+                certificate = chain.firstOrNull() as? X509Certificate,
+                chainLength = chain.size
             )
         }
     }

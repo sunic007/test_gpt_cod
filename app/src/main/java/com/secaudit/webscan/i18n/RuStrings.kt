@@ -75,8 +75,84 @@ object RuStrings : Strings() {
         "cat.headers" to "ЗАГОЛОВКИ",
         "cat.cookies" to "COOKIE",
         "cat.tls" to "TLS",
+        "cat.dns" to "DNS",
+        "cat.content" to "КОНТЕНТ",
         "cat.disclosure" to "РАСКРЫТИЕ",
         "cat.general" to "ОБЩЕЕ",
+
+        // -------------------------------------------------------- grade & words
+        "ui.grade" to "ОЦЕНКА",
+        "word.yes" to "да",
+        "word.no" to "нет",
+
+        // ----------------------------------------------------- new UI sections
+        "prog.dns" to "Запрашиваю DNS-записи для %s …",
+        "ui.sec.dns" to "DNS",
+        "ui.dns.unavailable" to "НЕ УДАЛОСЬ ПОЛУЧИТЬ DNS",
+        "ui.dns.caa" to "CAA",
+        "ui.dns.dnssec" to "DNSSEC",
+        "ui.dns.spf" to "SPF",
+        "ui.dns.dmarc" to "DMARC",
+        "ui.tls.key" to "ОТКРЫТЫЙ КЛЮЧ",
+        "ui.tls.sig" to "ПОДПИСЬ",
+        "ui.tls.chain" to "ДЛИНА ЦЕПОЧКИ",
+        "ui.tls.covers" to "ПОКРЫВАЕТ ХОСТ",
+
+        // -------------------------------------------------- certificate findings
+        "f.certweaksig.title" to "Слабая подпись сертификата",
+        "f.certweaksig.detail" to "Сертификат подписан алгоритмом %s, который опирается на " +
+            "взломанную (коллизии) хеш-функцию.",
+        "f.certweaksig.fix" to "Перевыпустите сертификат с подписью SHA-256 или сильнее.",
+
+        "f.certweakkey.title" to "Слабый ключ сертификата",
+        "f.certweakkey.detail" to "Сертификат использует ключ %s всего в %d бит.",
+        "f.certweakkey.fix" to "Используйте минимум RSA 2048 или ключ EC P-256.",
+
+        "f.certnohost.title" to "Хост не указан в сертификате",
+        "f.certnohost.detail" to "SAN-записи предъявленного сертификата не покрывают " +
+            "запрошенный хост. Браузер отклонил бы такой сертификат.",
+        "f.certnohost.fix" to "Выпустите сертификат, в SAN которого есть этот хост.",
+
+        "f.tlsprofile.key" to "Ключ: %s %d бит. ",
+        "f.tlsprofile.sig" to "Подпись: %s. ",
+        "f.tlsprofile.chain" to "Длина цепочки: %d. ",
+
+        // ------------------------------------------------------- mixed content
+        "f.mixed.title" to "Смешанный контент: %d ресурс(ов) по HTTP",
+        "f.mixed.detail" to "Эта HTTPS-страница подключает ресурсы по http://:\n%s",
+        "f.mixed.fix" to "Загружайте все подресурсы по https:// (или через protocol-relative URL).",
+
+        // ----------------------------------------------------------- DNS findings
+        "f.nocaa.title" to "Нет записи CAA",
+        "f.nocaa.detail" to "Нет записи Certification Authority Authorization. Сертификат для " +
+            "домена может выпустить любой УЦ.",
+        "f.nocaa.fix" to "Опубликуйте запись CAA с разрешёнными удостоверяющими центрами.",
+
+        "f.nodnssec.title" to "DNSSEC не включён",
+        "f.nodnssec.detail" to "Ответы не аутентифицированы DNSSEC, поэтому DNS-ответы можно " +
+            "подделать.",
+        "f.nodnssec.fix" to "Включите подпись DNSSEC у вашего DNS-провайдера.",
+
+        "f.nodmarc.title" to "Нет политики DMARC",
+        "f.nodmarc.detail" to "Нет записи _dmarc. Злоумышленники могут подделывать почту от " +
+            "имени домена.",
+        "f.nodmarc.fix" to "Опубликуйте запись DMARC, двигаясь к p=reject.",
+
+        "f.dmarcnone.title" to "Политика DMARC — p=none",
+        "f.dmarcnone.detail" to "DMARC опубликован, но только наблюдает и не блокирует " +
+            "поддельную почту.",
+        "f.dmarcnone.fix" to "Переведите политику на quarantine, затем на reject.",
+
+        "f.nospf.title" to "Нет записи SPF",
+        "f.nospf.detail" to "Нет TXT-записи v=spf1. Получатели не могут проверить, какие хосты " +
+            "вправе слать почту от домена.",
+        "f.nospf.fix" to "Опубликуйте запись SPF с вашими легитимными отправителями.",
+
+        "f.dnsprofile.title" to "Профиль DNS",
+        "f.dnsprofile.caa" to "Записей CAA: %d. ",
+        "f.dnsprofile.dnssec" to "DNSSEC: %s. ",
+        "f.dnsprofile.spf" to "SPF: %s. ",
+        "f.dnsprofile.dmarc" to "DMARC: %s.",
 
         // --------------------------------------------------------------- progress
         "prog.start" to "Запуск …",

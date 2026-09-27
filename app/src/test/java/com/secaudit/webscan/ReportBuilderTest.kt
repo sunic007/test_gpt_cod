@@ -3,6 +3,8 @@ package com.secaudit.webscan
 import com.secaudit.webscan.i18n.EnStrings
 import com.secaudit.webscan.i18n.RuStrings
 import com.secaudit.webscan.model.Category
+import com.secaudit.webscan.model.DnsInfo
+import com.secaudit.webscan.model.Grade
 import com.secaudit.webscan.model.SecurityTxt
 import com.secaudit.webscan.model.Severity
 import com.secaudit.webscan.model.TlsInfo
@@ -21,7 +23,9 @@ class ReportBuilderTest {
         headers: Map<String, String> = emptyMap(),
         cookies: List<String> = emptyList(),
         tls: TlsInfo? = null,
-        securityTxt: SecurityTxt = SecurityTxt(found = false)
+        securityTxt: SecurityTxt = SecurityTxt(found = false),
+        dns: DnsInfo? = null,
+        mixedContent: List<String> = emptyList()
     ) = RawObservations(
         target = finalUrl,
         finalUrl = finalUrl,
@@ -32,6 +36,8 @@ class ReportBuilderTest {
         cookies = cookies,
         tls = tls,
         securityTxt = securityTxt,
+        dns = dns,
+        mixedContent = mixedContent,
         startedAtEpochMs = 0L,
         durationMs = 120L
     )
@@ -123,6 +129,90 @@ class ReportBuilderTest {
 
         assertTrue(tlsFindings.any { it.severity == Severity.HIGH })
         assertTrue(tlsFindings.any { it.severity == Severity.INFO })
+    }
+
+    @Test
+    fun `a weak certificate signature and key are high severity`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders,
+                tls = TlsInfo(
+                    accepted = listOf("TLSv1.2", "TLSv1.3"),
+                    certSigAlg = "SHA1withRSA",
+                    certKeyType = "RSA",
+                    certKeyBits = 1024
+                )
+            )
+        )
+        val tls = report.findings.filter { it.category == Category.TLS }
+        assertTrue(tls.any { it.severity == Severity.HIGH && it.title.contains("signature") })
+        assertTrue(tls.any { it.severity == Severity.HIGH && it.title.contains("key") })
+    }
+
+    @Test
+    fun `a certificate not covering the host is flagged`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders,
+                tls = TlsInfo(accepted = listOf("TLSv1.3"), certCoversHost = false)
+            )
+        )
+        assertTrue(report.findings.any { it.title.contains("Host not listed") })
+    }
+
+    @Test
+    fun `mixed content is reported with a count`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders,
+                mixedContent = listOf("http://a.test/x.js", "http://a.test/y.css")
+            )
+        )
+        val mixed = report.findings.first { it.category == Category.CONTENT }
+        assertEquals(Severity.MEDIUM, mixed.severity)
+        assertTrue(mixed.detail.contains("http://a.test/x.js"))
+    }
+
+    @Test
+    fun `dns gaps are reported and a clean domain is not`() {
+        val weak = ReportBuilder(EnStrings).build(
+            observations(headers = hardenedHeaders, dns = DnsInfo(queried = true))
+        )
+        assertTrue(weak.findings.any { it.category == Category.DNS && it.title.contains("SPF") })
+        assertTrue(weak.findings.any { it.category == Category.DNS && it.title.contains("DMARC") })
+
+        val clean = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders,
+                dns = DnsInfo(
+                    queried = true,
+                    caaRecords = listOf("0 issue \"letsencrypt.org\""),
+                    dnssec = true,
+                    spf = "v=spf1 -all",
+                    dmarcPresent = true,
+                    dmarcPolicy = "reject"
+                )
+            )
+        )
+        // Only the INFO profile line remains, no LOW gaps.
+        assertTrue(clean.findings.none { it.category == Category.DNS && it.severity == Severity.LOW })
+    }
+
+    @Test
+    fun `a failed dns lookup adds no findings`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(headers = hardenedHeaders, dns = DnsInfo(queried = true, error = "boom"))
+        )
+        assertTrue(report.findings.none { it.category == Category.DNS })
+    }
+
+    @Test
+    fun `grade reflects severity`() {
+        val bad = ReportBuilder(EnStrings).build(
+            observations(finalUrl = "http://example.test/", isHttps = false)
+        )
+        // Plain HTTP is a HIGH finding, so the grade cannot be an A.
+        assertTrue(bad.grade.ordinal >= Grade.C.ordinal)
     }
 
     @Test

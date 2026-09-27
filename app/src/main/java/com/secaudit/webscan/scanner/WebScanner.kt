@@ -2,6 +2,7 @@ package com.secaudit.webscan.scanner
 
 import com.secaudit.webscan.i18n.EnStrings
 import com.secaudit.webscan.i18n.Strings
+import com.secaudit.webscan.model.DnsInfo
 import com.secaudit.webscan.model.SecurityTxt
 import com.secaudit.webscan.model.TlsInfo
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,8 @@ data class RawObservations(
     val cookies: List<String>,
     val tls: TlsInfo?,
     val securityTxt: SecurityTxt,
+    val dns: DnsInfo?,
+    val mixedContent: List<String>,
     val startedAtEpochMs: Long,
     val durationMs: Long
 )
@@ -52,6 +55,7 @@ class WebScanner {
 
     companion object {
         const val USER_AGENT = "WebSecAudit/1.2 (passive configuration review)"
+        private const val MAX_HTML_BYTES = 512L * 1024
     }
 
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -64,13 +68,15 @@ class WebScanner {
 
     private val tlsProbe = TlsProbe()
     private val securityTxtCheck = SecurityTxtCheck(client)
+    private val dnsCheck = DnsCheck(client)
 
     /** Response metadata copied out before the response body is closed. */
     private data class Head(
         val url: HttpUrl,
         val status: Int,
         val headers: Map<String, String>,
-        val cookies: List<String>
+        val cookies: List<String>,
+        val bodySample: String
     )
 
     /** Normalises user input into a valid absolute URL, defaulting to https://. */
@@ -98,12 +104,20 @@ class WebScanner {
             .build()
 
         val head = client.newCall(request).execute().use { response ->
+            val contentType = response.header("Content-Type").orEmpty()
+            // Only HTML is worth sampling for mixed content, and only up to a cap.
+            val body = if (contentType.contains("html", ignoreCase = true)) {
+                runCatching { response.peekBody(MAX_HTML_BYTES).string() }.getOrDefault("")
+            } else {
+                ""
+            }
             Head(
                 url = response.request.url,
                 status = response.code,
                 headers = response.headers.names()
                     .associate { it.lowercase() to response.headers[it].orEmpty() },
-                cookies = response.headers.values("Set-Cookie")
+                cookies = response.headers.values("Set-Cookie"),
+                bodySample = body
             )
         }
 
@@ -114,8 +128,13 @@ class WebScanner {
             null
         }
 
+        onProgress(s.t("prog.dns", head.url.host))
+        val dns: DnsInfo = dnsCheck.lookup(head.url.host)
+
         onProgress(s.t("prog.stxt"))
         val securityTxt = securityTxtCheck.fetch(head.url)
+
+        val mixed = if (head.url.isHttps) MixedContent.find(head.bodySample) else emptyList()
 
         onProgress(s.t("prog.correlate"))
         RawObservations(
@@ -128,6 +147,8 @@ class WebScanner {
             cookies = head.cookies,
             tls = tls,
             securityTxt = securityTxt,
+            dns = dns,
+            mixedContent = mixed,
             startedAtEpochMs = started,
             durationMs = System.currentTimeMillis() - started
         )

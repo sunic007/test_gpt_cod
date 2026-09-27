@@ -335,13 +335,19 @@ private fun ErrorPanel(s: Strings, message: String) {
 private fun ReportView(s: Strings, report: ScanReport) {
     Column {
         Panel {
-            Mono(report.finalUrl, Term.Accent2, bold = true)
-            Spacer(Modifier.height(8.dp))
-            Mono(
-                s.t("ui.meta", report.httpStatus, report.durationMs, report.findings.size),
-                Term.TextDim,
-                size = 12
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GradeBadge(report.grade)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Mono(report.finalUrl, Term.Accent2, bold = true, size = 13)
+                    Spacer(Modifier.height(4.dp))
+                    Mono(
+                        s.t("ui.meta", report.httpStatus, report.durationMs, report.findings.size),
+                        Term.TextDim,
+                        size = 11
+                    )
+                }
+            }
             Spacer(Modifier.height(12.dp))
             ScoreBar(s, report.score)
         }
@@ -378,6 +384,12 @@ private fun ReportView(s: Strings, report: ScanReport) {
             Spacer(Modifier.height(10.dp))
         }
 
+        report.dns?.let {
+            SectionHeader(s.t("ui.sec.dns"))
+            DnsPanel(s, it)
+            Spacer(Modifier.height(10.dp))
+        }
+
         report.securityTxt?.let {
             SectionHeader(s.t("ui.sec.disclosure"))
             SecurityTxtPanel(s, it)
@@ -389,6 +401,30 @@ private fun ReportView(s: Strings, report: ScanReport) {
             FindingPanel(s, it)
             Spacer(Modifier.height(10.dp))
         }
+    }
+}
+
+@Composable
+private fun GradeBadge(grade: com.secaudit.webscan.model.Grade) {
+    val color = when (grade) {
+        com.secaudit.webscan.model.Grade.A_PLUS,
+        com.secaudit.webscan.model.Grade.A -> Term.Low
+        com.secaudit.webscan.model.Grade.B,
+        com.secaudit.webscan.model.Grade.C -> Term.Medium
+        else -> Term.High
+    }
+    Box(
+        Modifier
+            .background(color, RoundedCornerShape(6.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(
+            grade.label,
+            color = Term.Bg,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp
+        )
     }
 }
 
@@ -495,8 +531,19 @@ private fun TlsPanel(s: Strings, tls: TlsInfo) {
             Field(s.t("ui.tls.untestable"), tls.untestable.joinToString(", "))
         }
         tls.cipherSuite?.let { Field(s.t("ui.tls.suite"), it) }
+        if (tls.certKeyBits > 0) {
+            Field(s.t("ui.tls.key"), "${tls.certKeyType ?: "?"} ${tls.certKeyBits}")
+        }
+        tls.certSigAlg?.let {
+            val weak = it.contains("SHA1", true) || it.contains("MD5", true)
+            Field(s.t("ui.tls.sig"), it, if (weak) Term.High else Term.Text)
+        }
+        if (tls.certChainLength > 0) Field(s.t("ui.tls.chain"), tls.certChainLength.toString())
         tls.certSubject?.let { Field(s.t("ui.tls.cert"), it) }
         tls.certIssuer?.let { Field(s.t("ui.tls.issuer"), it) }
+        tls.certCoversHost?.let {
+            Field(s.t("ui.tls.covers"), s.t(if (it) "word.yes" else "word.no"), if (it) Term.Low else Term.High)
+        }
         tls.certDaysRemaining?.let { days ->
             Field(
                 s.t("ui.tls.expiresIn"),
@@ -505,6 +552,38 @@ private fun TlsPanel(s: Strings, tls: TlsInfo) {
             )
         }
         if (tls.certAltNames > 0) Field(s.t("ui.tls.sans"), tls.certAltNames.toString())
+    }
+}
+
+@Composable
+private fun DnsPanel(s: Strings, dns: com.secaudit.webscan.model.DnsInfo) {
+    Panel {
+        if (dns.error != null) {
+            Label(s.t("ui.dns.unavailable"), Term.Medium)
+            Spacer(Modifier.height(8.dp))
+            Mono(dns.error, Term.Text, size = 12)
+            return@Panel
+        }
+        Field(
+            s.t("ui.dns.caa"),
+            if (dns.hasCaa) dns.caaRecords.joinToString("\n") else s.t("word.no"),
+            if (dns.hasCaa) Term.Low else Term.Medium
+        )
+        Field(
+            s.t("ui.dns.dnssec"),
+            s.t(if (dns.dnssec) "word.yes" else "word.no"),
+            if (dns.dnssec) Term.Low else Term.Medium
+        )
+        Field(
+            s.t("ui.dns.spf"),
+            dns.spf ?: s.t("word.no"),
+            if (dns.spf != null) Term.Low else Term.Medium
+        )
+        Field(
+            s.t("ui.dns.dmarc"),
+            dns.dmarcPolicy ?: s.t(if (dns.dmarcPresent) "word.yes" else "word.no"),
+            if (dns.dmarcPresent && dns.dmarcPolicy != "none") Term.Low else Term.Medium
+        )
     }
 }
 

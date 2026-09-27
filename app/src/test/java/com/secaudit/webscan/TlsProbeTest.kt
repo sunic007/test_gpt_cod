@@ -36,4 +36,27 @@ class TlsProbeTest {
         assertFalse(TlsProbe.isValidSniHost("-leadinghyphen.com"))
         assertFalse(TlsProbe.isValidSniHost("a".repeat(254)))
     }
+
+    @Test
+    fun `exact san entries match the host`() {
+        assertTrue(TlsProbe.hostMatchesSan("example.com", listOf("example.com")))
+        assertTrue(TlsProbe.hostMatchesSan("EXAMPLE.com", listOf("example.com.")))
+        assertFalse(TlsProbe.hostMatchesSan("example.com", listOf("other.com")))
+    }
+
+    @Test
+    fun `wildcard san covers one label only`() {
+        val san = listOf("*.example.com")
+        assertTrue(TlsProbe.hostMatchesSan("api.example.com", san))
+        assertFalse(TlsProbe.hostMatchesSan("example.com", san))         // apex not covered
+        assertFalse(TlsProbe.hostMatchesSan("a.b.example.com", san))     // two labels
+    }
+
+    @Test
+    fun `host is matched against any san entry`() {
+        val san = listOf("www.example.com", "*.cdn.example.com")
+        assertTrue(TlsProbe.hostMatchesSan("x.cdn.example.com", san))
+        assertTrue(TlsProbe.hostMatchesSan("www.example.com", san))
+        assertFalse(TlsProbe.hostMatchesSan("example.com", san))
+    }
 }

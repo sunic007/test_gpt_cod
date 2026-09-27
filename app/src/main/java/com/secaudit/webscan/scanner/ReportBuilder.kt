@@ -3,6 +3,7 @@ package com.secaudit.webscan.scanner
 import com.secaudit.webscan.i18n.EnStrings
 import com.secaudit.webscan.i18n.Strings
 import com.secaudit.webscan.model.Category
+import com.secaudit.webscan.model.DnsInfo
 import com.secaudit.webscan.model.Finding
 import com.secaudit.webscan.model.ScanReport
 import com.secaudit.webscan.model.SecurityTxt
@@ -23,7 +24,9 @@ class ReportBuilder(private val s: Strings = EnStrings) {
         val findings = buildList {
             addAll(analyzeHeaders(raw))
             raw.tls?.let { addAll(analyzeTls(it)) }
+            addAll(analyzeMixedContent(raw))
             addAll(analyzeSecurityTxt(raw.securityTxt))
+            raw.dns?.let { addAll(analyzeDns(it)) }
         }
 
         val investigation = investigator.investigate(
@@ -49,6 +52,7 @@ class ReportBuilder(private val s: Strings = EnStrings) {
             techProfile = investigation.techProfile,
             tls = raw.tls,
             securityTxt = raw.securityTxt,
+            dns = raw.dns,
             startedAtEpochMs = raw.startedAtEpochMs,
             durationMs = raw.durationMs
         )
@@ -194,6 +198,34 @@ class ReportBuilder(private val s: Strings = EnStrings) {
             }
         }
 
+        // Weak signature algorithm (SHA-1 / MD5 are collision-broken).
+        tls.certSigAlg?.let { alg ->
+            if (alg.contains("SHA1", true) || alg.contains("MD5", true)) {
+                findings += finding(
+                    "f.certweaksig", Severity.HIGH, Category.TLS,
+                    detailArgs = arrayOf(alg)
+                )
+            }
+        }
+
+        // Under-strength key for its type.
+        val weakKey = when (tls.certKeyType?.uppercase()) {
+            "RSA", "DSA" -> tls.certKeyBits in 1 until 2048
+            "EC" -> tls.certKeyBits in 1 until 256
+            else -> false
+        }
+        if (weakKey) {
+            findings += finding(
+                "f.certweakkey", Severity.HIGH, Category.TLS,
+                detailArgs = arrayOf(tls.certKeyType ?: "?", tls.certKeyBits)
+            )
+        }
+
+        // Presented certificate does not list the host among its SAN entries.
+        if (tls.certCoversHost == false) {
+            findings += finding("f.certnohost", Severity.MEDIUM, Category.TLS)
+        }
+
         findings += Finding(
             title = s.t("f.tlsprofile.title"),
             severity = Severity.INFO,
@@ -206,6 +238,11 @@ class ReportBuilder(private val s: Strings = EnStrings) {
                     append(s.t("f.tlsprofile.untestable", tls.untestable.joinToString(", ")))
                 }
                 tls.cipherSuite?.let { append(s.t("f.tlsprofile.suite", it)) }
+                if (tls.certKeyBits > 0) {
+                    append(s.t("f.tlsprofile.key", tls.certKeyType ?: "?", tls.certKeyBits))
+                }
+                tls.certSigAlg?.let { append(s.t("f.tlsprofile.sig", it)) }
+                if (tls.certChainLength > 0) append(s.t("f.tlsprofile.chain", tls.certChainLength))
                 tls.certSubject?.let { append(s.t("f.tlsprofile.subject", it)) }
                 if (tls.certAltNames > 0) append(s.t("f.tlsprofile.sans", tls.certAltNames))
             },
@@ -215,6 +252,60 @@ class ReportBuilder(private val s: Strings = EnStrings) {
 
         return findings
     }
+
+    // ------------------------------------------------------------- mixed content
+
+    private fun analyzeMixedContent(raw: RawObservations): List<Finding> {
+        if (raw.mixedContent.isEmpty()) return emptyList()
+        val sample = raw.mixedContent.take(5).joinToString("\n") { "• $it" }
+        return listOf(
+            finding(
+                "f.mixed", Severity.MEDIUM, Category.CONTENT,
+                titleArgs = arrayOf(raw.mixedContent.size),
+                detailArgs = arrayOf(sample)
+            )
+        )
+    }
+
+    // --------------------------------------------------------------------- DNS
+
+    private fun analyzeDns(dns: DnsInfo): List<Finding> {
+        if (!dns.queried || dns.error != null) return emptyList()
+        val findings = mutableListOf<Finding>()
+
+        if (!dns.hasCaa) {
+            findings += finding("f.nocaa", Severity.LOW, Category.DNS)
+        }
+        if (!dns.dnssec) {
+            findings += finding("f.nodnssec", Severity.LOW, Category.DNS)
+        }
+        when {
+            !dns.dmarcPresent ->
+                findings += finding("f.nodmarc", Severity.LOW, Category.DNS)
+            dns.dmarcPolicy == "none" ->
+                findings += finding("f.dmarcnone", Severity.LOW, Category.DNS)
+        }
+        if (dns.spf == null) {
+            findings += finding("f.nospf", Severity.LOW, Category.DNS)
+        }
+
+        findings += Finding(
+            title = s.t("f.dnsprofile.title"),
+            severity = Severity.INFO,
+            detail = buildString {
+                append(s.t("f.dnsprofile.caa", if (dns.hasCaa) dns.caaRecords.size else 0))
+                append(s.t("f.dnsprofile.dnssec", yesNo(dns.dnssec)))
+                append(s.t("f.dnsprofile.spf", yesNo(dns.spf != null)))
+                append(s.t("f.dnsprofile.dmarc", dns.dmarcPolicy ?: yesNo(false)))
+            },
+            remediation = s.t("f.info.fix"),
+            category = Category.DNS
+        )
+
+        return findings
+    }
+
+    private fun yesNo(v: Boolean) = s.t(if (v) "word.yes" else "word.no")
 
     // ----------------------------------------------------------- security.txt
 

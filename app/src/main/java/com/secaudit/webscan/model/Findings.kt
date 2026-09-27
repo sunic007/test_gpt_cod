@@ -24,6 +24,8 @@ enum class Category(val key: String) {
     HEADERS("cat.headers"),
     COOKIES("cat.cookies"),
     TLS("cat.tls"),
+    DNS("cat.dns"),
+    CONTENT("cat.content"),
     DISCLOSURE("cat.disclosure"),
     GENERAL("cat.general")
 }
@@ -98,6 +100,11 @@ data class TlsInfo(
     val certExpiresEpochMs: Long? = null,
     val certDaysRemaining: Long? = null,
     val certAltNames: Int = 0,
+    val certSigAlg: String? = null,
+    val certKeyType: String? = null,
+    val certKeyBits: Int = 0,
+    val certChainLength: Int = 0,
+    val certCoversHost: Boolean? = null,
     val error: String? = null
 ) {
     val reachable: Boolean get() = accepted.isNotEmpty()
@@ -127,6 +134,7 @@ data class ScanReport(
     val techProfile: TechProfile = TechProfile(emptyList(), emptyList()),
     val tls: TlsInfo? = null,
     val securityTxt: SecurityTxt? = null,
+    val dns: DnsInfo? = null,
     val startedAtEpochMs: Long,
     val durationMs: Long
 ) {
@@ -143,6 +151,8 @@ data class ScanReport(
             }
             return s.coerceIn(0, 100)
         }
+
+    val grade: Grade get() = Grade.of(score, findings.any { it.severity == Severity.HIGH })
 }
 
 /** UI state for the scan screen. */
