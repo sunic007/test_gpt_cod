@@ -15,6 +15,9 @@ object EnStrings : Strings() {
         "ui.target.hint" to "example.com",
         "ui.action.scan" to "RUN AUDIT",
         "ui.action.reset" to "CLEAR",
+        "ui.action.export" to "SHARE",
+        "ui.sec.history" to "HISTORY",
+        "ui.history.clear" to "CLEAR ALL",
         "ui.lang.label" to "LANGUAGE",
         "ui.footer" to "The app reads only what the target publishes about itself: one page " +
             "request, handshake-only TLS probes, and the disclosure policy. Use it solely on " +

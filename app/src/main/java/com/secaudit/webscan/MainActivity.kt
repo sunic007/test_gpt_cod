@@ -1,5 +1,6 @@
 package com.secaudit.webscan
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -52,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -61,6 +63,7 @@ import com.secaudit.webscan.i18n.Lang
 import com.secaudit.webscan.i18n.Strings
 import com.secaudit.webscan.model.Confidence
 import com.secaudit.webscan.model.Finding
+import com.secaudit.webscan.model.HistoryEntry
 import com.secaudit.webscan.model.Lead
 import com.secaudit.webscan.model.ScanReport
 import com.secaudit.webscan.model.ScanState
@@ -94,10 +97,22 @@ class MainActivity : ComponentActivity() {
 private fun AppScreen(viewModel: ScanViewModel) {
     val state by viewModel.state.collectAsState()
     val lang by viewModel.lang.collectAsState()
+    val history by viewModel.history.collectAsState()
     val s = Strings.of(lang)
+    val context = LocalContext.current
 
     var target by remember { mutableStateOf("") }
     var authorised by remember { mutableStateOf(false) }
+
+    fun shareReport() {
+        val text = viewModel.exportText() ?: return
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, s.t("ui.app.title"))
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(Intent.createChooser(send, s.t("ui.action.export")))
+    }
 
     Scaffold(
         containerColor = Term.Bg,
@@ -117,6 +132,18 @@ private fun AppScreen(viewModel: ScanViewModel) {
                     )
                 },
                 actions = {
+                    if (state is ScanState.Done) {
+                        Text(
+                            s.t("ui.action.export"),
+                            color = Term.Accent,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            modifier = Modifier
+                                .clickable { shareReport() }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        )
+                    }
                     LangSwitch(current = lang, onPick = viewModel::setLang)
                     Spacer(Modifier.width(8.dp))
                 }
@@ -191,7 +218,18 @@ private fun AppScreen(viewModel: ScanViewModel) {
             Spacer(Modifier.height(20.dp))
 
             when (val current = state) {
-                is ScanState.Idle -> Unit
+                is ScanState.Idle -> if (history.isNotEmpty()) {
+                    HistorySection(
+                        s = s,
+                        history = history,
+                        onOpen = { entry ->
+                            target = entry.target
+                            viewModel.scan(entry.target)
+                        },
+                        onClear = viewModel::clearHistory
+                    )
+                }
+
                 is ScanState.Running -> RunningView(current.message)
                 is ScanState.Error -> ErrorPanel(s, current.message)
                 is ScanState.Done -> ReportView(s, current.report)
@@ -209,6 +247,66 @@ private fun AppScreen(viewModel: ScanViewModel) {
 }
 
 // ----------------------------------------------------------------- top-level UI
+
+@Composable
+private fun HistorySection(
+    s: Strings,
+    history: List<HistoryEntry>,
+    onOpen: (HistoryEntry) -> Unit,
+    onClear: () -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "// ${s.t("ui.sec.history")}",
+            color = Term.Accent,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            letterSpacing = 1.2.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            s.t("ui.history.clear"),
+            color = Term.TextDim,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            modifier = Modifier
+                .clickable { onClear() }
+                .padding(6.dp)
+        )
+    }
+    Spacer(Modifier.height(10.dp))
+    history.forEach { entry ->
+        Panel {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpen(entry) }
+            ) {
+                Chip(entry.grade, gradeColorForLabel(entry.grade))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Mono(entry.target, Term.Text, bold = true, size = 13)
+                    Mono("${entry.score}/100 · ${formatTime(entry.epochMs)}", Term.TextDim, size = 11)
+                }
+                Text("↻", color = Term.Accent, fontFamily = FontFamily.Monospace, fontSize = 16.sp)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+private fun formatTime(epochMs: Long): String =
+    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.ROOT)
+        .format(java.util.Date(epochMs))
+
+private fun gradeColorForLabel(label: String): Color = when (label) {
+    "A+", "A" -> Term.Low
+    "B", "C" -> Term.Medium
+    else -> Term.High
+}
 
 @Composable
 private fun LangSwitch(current: Lang, onPick: (Lang) -> Unit) {

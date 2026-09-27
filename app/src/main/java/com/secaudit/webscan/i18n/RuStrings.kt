@@ -16,6 +16,9 @@ object RuStrings : Strings() {
         "ui.target.hint" to "example.com",
         "ui.action.scan" to "ЗАПУСТИТЬ АУДИТ",
         "ui.action.reset" to "ОЧИСТИТЬ",
+        "ui.action.export" to "ПОДЕЛИТЬСЯ",
+        "ui.sec.history" to "ИСТОРИЯ",
+        "ui.history.clear" to "ОЧИСТИТЬ ВСЁ",
         "ui.lang.label" to "ЯЗЫК",
         "ui.footer" to "Приложение читает только то, что сайт сам о себе публикует: один запрос " +
             "страницы, TLS-пробы без передачи данных и политику раскрытия. Используйте его " +

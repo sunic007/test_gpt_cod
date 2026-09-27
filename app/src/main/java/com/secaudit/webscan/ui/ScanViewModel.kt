@@ -1,27 +1,35 @@
 package com.secaudit.webscan.ui
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.secaudit.webscan.i18n.Lang
 import com.secaudit.webscan.i18n.Strings
+import com.secaudit.webscan.model.HistoryEntry
+import com.secaudit.webscan.model.ScanReport
 import com.secaudit.webscan.model.ScanState
 import com.secaudit.webscan.scanner.RawObservations
 import com.secaudit.webscan.scanner.ReportBuilder
+import com.secaudit.webscan.scanner.ReportExporter
 import com.secaudit.webscan.scanner.WebScanner
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class ScanViewModel : ViewModel() {
+class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private val scanner = WebScanner()
+    private val historyStore = HistoryStore(app)
 
     private val _lang = MutableStateFlow(Lang.fromSystem())
     val lang: StateFlow<Lang> = _lang.asStateFlow()
 
     private val _state = MutableStateFlow<ScanState>(ScanState.Idle)
     val state: StateFlow<ScanState> = _state.asStateFlow()
+
+    private val _history = MutableStateFlow(historyStore.load())
+    val history: StateFlow<List<HistoryEntry>> = _history.asStateFlow()
 
     /** Kept so a language switch can re-word the report without re-scanning. */
     private var lastObservations: RawObservations? = null
@@ -47,11 +55,35 @@ class ScanViewModel : ViewModel() {
                     _state.value = ScanState.Running(message)
                 }
                 lastObservations = observations
-                _state.value = ScanState.Done(ReportBuilder(strings).build(observations))
+                val report = ReportBuilder(strings).build(observations)
+                _state.value = ScanState.Done(report)
+                remember(report)
             } catch (t: Throwable) {
                 _state.value = ScanState.Error(t.message ?: s.t("ui.err.generic"))
             }
         }
+    }
+
+    private fun remember(report: ScanReport) {
+        _history.value = historyStore.add(
+            HistoryEntry(
+                target = report.target,
+                finalUrl = report.finalUrl,
+                grade = report.grade.label,
+                score = report.score,
+                epochMs = System.currentTimeMillis()
+            )
+        )
+    }
+
+    fun clearHistory() {
+        _history.value = historyStore.clear()
+    }
+
+    /** The current report as shareable plain text, or null if there is nothing to share. */
+    fun exportText(): String? {
+        val done = _state.value as? ScanState.Done ?: return null
+        return ReportExporter(strings).toPlainText(done.report)
     }
 
     fun reset() {
