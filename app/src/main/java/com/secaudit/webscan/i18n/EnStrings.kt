@@ -31,9 +31,10 @@ object EnStrings : Strings() {
             "aggressive ones, against these containers because they are yours. Never point the " +
             "same tools at systems you do not own or are not authorised to test.",
         "lab.phone.title" to "PHONE ONLY (TERMUX)",
-        "lab.phone.body" to "No PC needed. Install Termux (from F-Droid), then run this to start " +
-            "a vulnerable target on the phone itself. Then scan localhost:8000 in the Audit tab. " +
-            "Full steps: lab/termux/README.md.",
+        "lab.phone.body" to "No PC needed. Install Termux (from F-Droid), then run this to fetch " +
+            "and start DSVW (Damn Small Vulnerable Web, a ready-made project by stamparm) on the " +
+            "phone itself. It serves at localhost:65412 — scan it in the Audit tab. Full steps: " +
+            "lab/termux/README.md.",
         "lab.docker.title" to "FULL LAB (NEEDS A PC)",
         "lab.docker.body" to "On a machine with Docker you can run the full Juice Shop and DVWA " +
             "and point real Kali tools at them.",

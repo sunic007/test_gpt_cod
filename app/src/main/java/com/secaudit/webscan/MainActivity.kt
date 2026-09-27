@@ -301,9 +301,9 @@ private fun TabPill(label: String, selected: Boolean, modifier: Modifier, onClic
 }
 
 private const val LAB_TERMUX = "pkg install python git -y\n" +
-    "git clone https://github.com/sunic007/test_gpt_cod\n" +
-    "cd test_gpt_cod/lab/termux\n" +
-    "python vuln_server.py"
+    "git clone https://github.com/stamparm/DSVW\n" +
+    "cd DSVW\n" +
+    "python dsvw.py"
 private const val LAB_UP = "docker compose -f lab/docker-compose.yml up -d"
 private const val LAB_TARGETS = "http://localhost:3000   # OWASP Juice Shop\n" +
     "http://localhost:8080   # DVWA (admin / password)"

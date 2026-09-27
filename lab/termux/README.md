@@ -1,72 +1,68 @@
-# Phone-only lab (Termux)
+# Phone-only lab (Termux) — ready-made targets
 
-No PC, no Docker — a real, own practice target running **on your Android phone**
-with nothing but Python. Because it runs on your device and listens on localhost
-only, it is yours to attack, which keeps practice legal.
+No PC, no Docker. Run a real, well-known vulnerable app **on your Android phone**
+with Python. Because it runs on your device and listens on localhost only, it is
+yours to attack, which keeps practice legal.
 
-## 1. Install Termux
+## Recommended: DSVW (a ready-made GitHub project)
+
+[**DSVW — Damn Small Vulnerable Web**](https://github.com/stamparm/DSVW) by
+Miroslav Stampar (co-author of sqlmap): a single Python file with ~26 classic web
+vulnerabilities (SQLi, XSS, XXE, SSRF, LFI/RFI, command injection, and more). It
+binds to `127.0.0.1:65412` by default, so it stays on your phone.
+
+### 1. Install Termux
 
 Install **Termux** from F-Droid (https://f-droid.org/packages/com.termux/) — the
 Play Store build is outdated. Open it.
 
-## 2. Get Python and this repo
+### 2. Fetch and run DSVW
 
 ```bash
 pkg update -y && pkg install python git -y
-git clone https://github.com/sunic007/test_gpt_cod
-cd test_gpt_cod/lab/termux
+git clone https://github.com/stamparm/DSVW
+cd DSVW
+python dsvw.py
 ```
 
-## 3. Start the target
+It prints `running HTTP server at 'http://127.0.0.1:65412'`. Leave it running.
 
-```bash
-python vuln_server.py
-```
+> Optional: a few XML/XXE exercises need `lxml`. Everything else works without it.
+> To enable them: `pkg install libxml2 libxslt` then `pip install lxml`.
 
-It serves an intentionally vulnerable app at **http://localhost:8000** (localhost
-only — nothing off the phone can reach it). Leave this Termux session running.
+### 3. Scan it with your own app
 
-## 4. Scan it with your own app
+Open Web Security Audit → **Audit** tab → enter `localhost:65412`, tick the
+authorisation box (it *is* yours), run.
 
-Open the Web Security Audit app → **Audit** tab → enter `localhost:8000`, tick the
-authorisation box (it *is* yours), run. You should see the missing security
-headers, the insecure `SID` cookie, and the `Server` / `X-Powered-By` disclosure
-light up.
+### 4. Practise
 
-## 5. Practise the active exercises
+DSVW's landing page lists its vulnerable endpoints with example payloads — work
+through them in the phone browser or a second Termux session (`curl`). Swipe from
+the left edge → **NEW SESSION** to get a second shell while the server runs.
 
-In a browser on the phone (or a second Termux session with `curl`):
+## Other ready-made options
 
-| Exercise | Try |
-| --- | --- |
-| Reflected XSS | open `http://localhost:8000/greet?name=<script>alert(1)</script>` |
-| SQL injection | at `/login`, username `' OR 1=1 -- ` (trailing space), any password |
-| Open redirect | `http://localhost:8000/redirect?url=https://example.com` |
+- **OWASP Juice Shop** (https://github.com/juice-shop/juice-shop) — much richer,
+  but Node with native deps; realistically needs a PC or cloud, not a phone.
+- **DVWA** (https://github.com/digininja/DVWA) — classic PHP app; needs PHP +
+  MySQL. See `lab/docker-compose.yml` to run it (and Juice Shop) on any machine
+  with Docker.
 
-A second Termux shell (swipe from the left → **NEW SESSION**) lets you run CLI
-tools while the server keeps running, e.g.:
+## Offline fallback
 
-```bash
-curl -i http://localhost:8000/
-curl "http://localhost:8000/greet?name=<script>alert(1)</script>"
-curl -X POST --data-urlencode "username=' OR 1=1 -- " --data-urlencode "password=x" \
-     http://localhost:8000/login
-```
+If you cannot `git clone` (no network in Termux), this repo ships a tiny
+self-contained target you can copy over manually: `lab/termux/vuln_server.py`
+(`python vuln_server.py` → http://localhost:8000). DSVW above is preferred — it is
+maintained and far more complete.
 
-## 6. Learn the bugs
+## Learn the bugs
 
-- PortSwigger Web Security Academy (free, phone-friendly): https://portswigger.net/web-security
+- PortSwigger Web Security Academy (free): https://portswigger.net/web-security
 - OWASP Top 10: https://owasp.org/www-project-top-ten/
 
-## Stop it
+## Safety
 
-Press `Ctrl+C` in the Termux session running the server.
-
----
-
-### Want the full Juice Shop / DVWA + real Kali tools?
-
-That needs more than a phone. The `lab/docker-compose.yml` in this repo runs both
-on any machine with Docker, and you can drive it for free from your phone's
-browser via GitHub Codespaces or Gitpod. Ask and I'll add a ready-to-run cloud
-config.
+These apps are deliberately insecure. Run them only on your own device, on a
+network you trust, and never expose them to the internet. Never point what you
+practise here at systems you do not own or are not authorised to test.
