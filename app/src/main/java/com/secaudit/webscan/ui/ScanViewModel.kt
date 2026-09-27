@@ -21,10 +21,12 @@ class ScanViewModel(
             _state.value = ScanState.Error("Enter a target URL first.")
             return
         }
-        _state.value = ScanState.Running("Requesting ${scanner.normalizeTarget(target)} …")
+        _state.value = ScanState.Running("Starting …")
         viewModelScope.launch {
             try {
-                val report = scanner.scan(target)
+                val report = scanner.scan(target) { message ->
+                    _state.value = ScanState.Running(message)
+                }
                 _state.value = ScanState.Done(report)
             } catch (t: Throwable) {
                 _state.value = ScanState.Error(t.message ?: "The request failed.")
