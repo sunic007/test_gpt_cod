@@ -300,6 +300,10 @@ private fun TabPill(label: String, selected: Boolean, modifier: Modifier, onClic
     }
 }
 
+private const val LAB_TERMUX = "pkg install python git -y\n" +
+    "git clone https://github.com/sunic007/test_gpt_cod\n" +
+    "cd test_gpt_cod/lab/termux\n" +
+    "python vuln_server.py"
 private const val LAB_UP = "docker compose -f lab/docker-compose.yml up -d"
 private const val LAB_TARGETS = "http://localhost:3000   # OWASP Juice Shop\n" +
     "http://localhost:8080   # DVWA (admin / password)"
@@ -326,6 +330,13 @@ private fun LabScreen(s: Strings) {
         Text(s.t("lab.warn.body"), style = MaterialTheme.typography.bodyMedium, color = Term.Text)
     }
 
+    LabStep(s, "lab.phone.title", "lab.phone.body", LAB_TERMUX)
+
+    SectionHeader(s.t("lab.docker.title"))
+    Panel {
+        Text(s.t("lab.docker.body"), style = MaterialTheme.typography.bodyMedium, color = Term.Text)
+    }
+    Spacer(Modifier.height(10.dp))
     LabStep(s, "lab.step1.title", "lab.step1.body", LAB_UP)
     LabStep(s, "lab.targets.title", "lab.targets.body", LAB_TARGETS)
     LabStep(s, "lab.step2.title", "lab.step2.body", LAB_TOOLS)
