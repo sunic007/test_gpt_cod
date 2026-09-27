@@ -1,7 +1,10 @@
 package com.secaudit.webscan.scanner
 
+import com.secaudit.webscan.i18n.EnStrings
+import com.secaudit.webscan.i18n.Strings
 import com.secaudit.webscan.model.Confidence
 import com.secaudit.webscan.model.Lead
+import com.secaudit.webscan.model.LeadId
 import com.secaudit.webscan.model.SecurityTxt
 import com.secaudit.webscan.model.Severity
 import com.secaudit.webscan.model.TechProfile
@@ -36,7 +39,7 @@ data class Investigation(
  * chain worth writing up. Every conclusion carries the clues that produced it so
  * a reader can check the reasoning rather than trust the verdict.
  */
-class Investigator {
+class Investigator(private val s: Strings = EnStrings) {
 
     private companion object {
         /** Oldest branch still receiving vendor fixes, for an age sanity check. */
@@ -61,6 +64,7 @@ class Investigator {
             "x-akamai-transformed" to "Akamai"
         )
 
+        /** A leading "@" marks a translation key rather than a product name. */
         val HEADER_SIGNALS = mapOf(
             "x-aspnet-version" to "ASP.NET",
             "x-aspnetmvc-version" to "ASP.NET MVC",
@@ -68,12 +72,12 @@ class Investigator {
             "x-drupal-dynamic-cache" to "Drupal",
             "x-shopify-stage" to "Shopify",
             "x-litespeed-cache" to "LiteSpeed",
-            "x-generator" to "CMS generator"
+            "x-generator" to "@tech.cmsGenerator"
         )
 
         val COOKIE_SIGNALS = listOf(
             "phpsessid" to "PHP",
-            "jsessionid" to "Java servlet container",
+            "jsessionid" to "@tech.javaServlet",
             "asp.net_sessionid" to "ASP.NET",
             ".aspnetcore." to "ASP.NET Core",
             "laravel_session" to "Laravel",
@@ -92,7 +96,7 @@ class Investigator {
     fun investigate(evidence: Evidence): Investigation {
         val profile = fingerprint(evidence)
         val leads = buildList {
-            addAll(legacyStackLead(evidence, profile))
+            addAll(legacyStackLead(evidence))
             addAll(cookieExposureChain(evidence))
             addAll(missingHardeningLayer(evidence))
             addAll(originLeakThroughEdge(evidence))
@@ -107,6 +111,10 @@ class Investigator {
         return Investigation(leads, profile, narrate(evidence, profile, leads))
     }
 
+    /** Product names stay as they are; "@key" entries are translated. */
+    private fun implies(raw: String): String =
+        if (raw.startsWith("@")) s.t(raw.substring(1)) else raw
+
     // ---------------------------------------------------------------- profile
 
     /** Builds a stack picture out of many individually inconclusive hints. */
@@ -114,37 +122,42 @@ class Investigator {
         val signals = mutableListOf<TechSignal>()
 
         evidence.headers["server"]?.takeIf { it.isNotBlank() }?.let { value ->
-            signals += TechSignal("Server header", value, describeProducts(value))
+            signals += TechSignal(s.t("tech.src.server"), value, describeProducts(value))
         }
         evidence.headers["x-powered-by"]?.takeIf { it.isNotBlank() }?.let { value ->
-            signals += TechSignal("X-Powered-By header", value, describeProducts(value))
+            signals += TechSignal(s.t("tech.src.powered"), value, describeProducts(value))
         }
-        HEADER_SIGNALS.forEach { (header, implies) ->
+        HEADER_SIGNALS.forEach { (header, implied) ->
             evidence.headers[header]?.let { value ->
-                signals += TechSignal("$header header", value, implies)
+                signals += TechSignal(s.t("tech.src.header", header), value, implies(implied))
             }
         }
         CDN_HEADERS.forEach { (header, vendor) ->
             if (evidence.headers.containsKey(header)) {
-                signals += TechSignal("$header header", "present", "$vendor in front of the origin")
+                signals += TechSignal(
+                    s.t("tech.src.header", header),
+                    s.t("tech.present"),
+                    s.t("tech.cdnInFront", vendor)
+                )
             }
         }
         evidence.headers["link"]?.let { value ->
             if (value.contains("wp-json", ignoreCase = true)) {
-                signals += TechSignal("Link header", "wp-json REST route", "WordPress")
+                signals += TechSignal(s.t("tech.src.link"), s.t("tech.linkWpJson"), "WordPress")
             }
         }
         evidence.setCookies.forEach { cookie ->
             val name = cookie.substringBefore('=').trim()
             val lower = name.lowercase()
-            COOKIE_SIGNALS.firstOrNull { lower.contains(it.first) }?.let { (_, implies) ->
-                signals += TechSignal("Cookie name", name, implies)
+            COOKIE_SIGNALS.firstOrNull { lower.contains(it.first) }?.let { (_, implied) ->
+                signals += TechSignal(s.t("tech.src.cookie"), name, implies(implied))
             }
         }
 
+        val unrecognised = s.t("tech.unrecognised")
         val stack = signals
             .map { it.implies }
-            .filter { it.isNotBlank() && it != "unrecognised product string" }
+            .filter { it.isNotBlank() && it != unrecognised }
             .flatMap { it.split(", ") }
             .distinct()
 
@@ -153,7 +166,7 @@ class Investigator {
 
     private fun describeProducts(raw: String): String {
         val products = parseProducts(raw)
-        if (products.isEmpty()) return "unrecognised product string"
+        if (products.isEmpty()) return s.t("tech.unrecognised")
         return products.joinToString(", ") { (name, version) ->
             if (version == null) name else "$name $version"
         }
@@ -174,7 +187,7 @@ class Investigator {
             .mapNotNull { (name, version) ->
                 val floor = SUPPORTED_FLOOR[name.lowercase()] ?: return@mapNotNull null
                 if (version != null && compareVersions(version, floor) < 0) {
-                    "$name $version (supported branch starts at $floor)"
+                    s.t("tech.branchNote", name, version, floor)
                 } else {
                     null
                 }
@@ -193,34 +206,32 @@ class Investigator {
 
     // ------------------------------------------------------------------ leads
 
-    private fun legacyStackLead(evidence: Evidence, profile: TechProfile): List<Lead> {
+    private fun legacyStackLead(evidence: Evidence): List<Lead> {
         val clues = mutableListOf<String>()
 
         val legacy = evidence.tls?.accepted.orEmpty().filter { it in LEGACY_TLS }
-        if (legacy.isNotEmpty()) clues += "Server completes a handshake on ${legacy.joinToString(" and ")}"
+        if (legacy.isNotEmpty()) clues += s.t("c.legacyHandshake", legacy.joinToString(" / "))
 
-        outdatedProducts(evidence).forEach { clues += "Banner advertises $it" }
+        outdatedProducts(evidence).forEach { clues += s.t("c.bannerOutdated", it) }
 
         val securityTxt = evidence.securityTxt
         if (securityTxt != null && securityTxt.expired == true) {
-            clues += "Published security.txt expired on ${securityTxt.expires}"
+            clues += s.t("c.stxtExpired", securityTxt.expires)
         }
-        if (evidence.tls?.accepted?.contains("TLSv1.3") == false && evidence.isHttps) {
-            clues += "TLS 1.3 is not offered"
+        if (evidence.isHttps && evidence.tls?.accepted?.contains("TLSv1.3") == false) {
+            clues += s.t("c.noTls13")
         }
 
         if (clues.size < 2) return emptyList()
 
         return listOf(
             Lead(
-                hypothesis = "This deployment looks like it has not been maintained for some time",
+                id = LeadId.UNMAINTAINED,
+                hypothesis = s.t("l.unmaintained.h"),
                 confidence = if (clues.size >= 3) Confidence.HIGH else Confidence.MEDIUM,
                 severity = if (legacy.isNotEmpty()) Severity.HIGH else Severity.MEDIUM,
                 evidence = clues,
-                soWhat = "Independent signals all point at an ageing configuration. The " +
-                    "specific items matter less than the pattern: whoever owns this host is " +
-                    "probably not applying the vendor's current guidance, so assume other " +
-                    "patches are outstanding too. Confirm the platform's patch level directly."
+                soWhat = s.t("l.unmaintained.s")
             )
         )
     }
@@ -235,31 +246,21 @@ class Investigator {
 
         val hasHsts = evidence.headers.containsKey("strict-transport-security")
         val clues = mutableListOf(
-            "Site is served over HTTPS",
-            "Cookie(s) set without the Secure attribute: ${insecure.joinToString(", ")}"
+            s.t("c.servedHttps"),
+            s.t("c.cookiesNoSecure", insecure.joinToString(", "))
         )
-        if (!hasHsts) clues += "No Strict-Transport-Security policy is published"
+        if (!hasHsts) clues += s.t("c.noHstsPolicy")
         evidence.tls?.accepted.orEmpty().filter { it in LEGACY_TLS }.takeIf { it.isNotEmpty() }
-            ?.let { clues += "Legacy TLS (${it.joinToString(", ")}) still accepted" }
+            ?.let { clues += s.t("c.legacyStillAccepted", it.joinToString(", ")) }
 
         return listOf(
             Lead(
-                hypothesis = "These cookies can end up on the wire in plaintext",
+                id = LeadId.COOKIE_PLAINTEXT_CHAIN,
+                hypothesis = s.t("l.cookiechain.h"),
                 confidence = if (hasHsts) Confidence.MEDIUM else Confidence.HIGH,
                 severity = if (hasHsts) Severity.MEDIUM else Severity.HIGH,
                 evidence = clues,
-                soWhat = if (hasHsts) {
-                    "HSTS keeps browsers on HTTPS after the first visit, which narrows this a " +
-                        "lot, but the cookies themselves are still not marked Secure. Anything " +
-                        "that reaches the site over HTTP before the policy is cached, or from a " +
-                        "client that ignores it, will send them unprotected. Set Secure anyway."
-                } else {
-                    "Two gaps line up here. Without Secure the browser is willing to send these " +
-                        "cookies over plain HTTP, and without HSTS nothing stops it from making " +
-                        "that plain-HTTP request in the first place. Together they mean session " +
-                        "values can be observed by anyone on the network path. Fixing either one " +
-                        "breaks the chain; fix both."
-                }
+                soWhat = s.t(if (hasHsts) "l.cookiechain.s.hsts" else "l.cookiechain.s.nohsts")
             )
         )
     }
@@ -267,29 +268,26 @@ class Investigator {
     private fun missingHardeningLayer(evidence: Evidence): List<Lead> {
         val csp = evidence.headers["content-security-policy"].orEmpty()
         val missing = buildList {
-            if (csp.isBlank()) add("Content-Security-Policy")
+            if (csp.isBlank()) add(s.t("hdr.csp"))
             if (evidence.headers["x-frame-options"].isNullOrBlank() &&
                 !csp.contains("frame-ancestors", true)
-            ) add("frame protection")
+            ) add(s.t("hdr.frame"))
             if (!evidence.headers["x-content-type-options"].equals("nosniff", true)) {
-                add("X-Content-Type-Options")
+                add(s.t("hdr.nosniff"))
             }
-            if (evidence.headers["referrer-policy"].isNullOrBlank()) add("Referrer-Policy")
-            if (evidence.headers["permissions-policy"].isNullOrBlank()) add("Permissions-Policy")
+            if (evidence.headers["referrer-policy"].isNullOrBlank()) add(s.t("hdr.referrer"))
+            if (evidence.headers["permissions-policy"].isNullOrBlank()) add(s.t("hdr.permissions"))
         }
         if (missing.size < 4) return emptyList()
 
         return listOf(
             Lead(
-                hypothesis = "No browser-hardening layer was ever configured here",
+                id = LeadId.NO_HARDENING_LAYER,
+                hypothesis = s.t("l.hardening.h"),
                 confidence = Confidence.HIGH,
                 severity = Severity.MEDIUM,
-                evidence = missing.map { "$it is absent" },
-                soWhat = "When one or two of these are missing it usually means a specific " +
-                    "trade-off. When ${missing.size} are missing at once it almost always means " +
-                    "nobody configured response headers at all, and the server is answering with " +
-                    "stock defaults. That is worth checking as a process gap, not just a config " +
-                    "gap: the same omission probably applies to other hosts in the estate."
+                evidence = missing.map { s.t("c.headerAbsent", it) },
+                soWhat = s.t("l.hardening.s", missing.size)
             )
         )
     }
@@ -299,25 +297,23 @@ class Investigator {
             ?: return emptyList()
 
         val originClues = mutableListOf<String>()
-        evidence.headers["x-powered-by"]?.let { originClues += "X-Powered-By still reports \"$it\"" }
-        evidence.headers["x-aspnet-version"]?.let { originClues += "X-AspNet-Version reports \"$it\"" }
+        evidence.headers["x-powered-by"]?.let { originClues += s.t("c.poweredByReports", it) }
+        evidence.headers["x-aspnet-version"]?.let { originClues += s.t("c.aspnetVersion", it) }
         evidence.setCookies
             .map { it.substringBefore('=').trim() }
             .filter { name -> COOKIE_SIGNALS.any { name.lowercase().contains(it.first) } }
-            .forEach { originClues += "Origin framework cookie \"$it\" passes through the edge" }
+            .forEach { originClues += s.t("c.originCookie", it) }
 
         if (originClues.isEmpty()) return emptyList()
 
         return listOf(
             Lead(
-                hypothesis = "The CDN fronts the site, but the origin's fingerprint passes straight through",
+                id = LeadId.EDGE_ORIGIN_LEAK,
+                hypothesis = s.t("l.edgeleak.h"),
                 confidence = Confidence.MEDIUM,
                 severity = Severity.LOW,
-                evidence = listOf("${edge.value} is serving the response") + originClues,
-                soWhat = "Part of the point of an edge layer is that the origin's software is " +
-                    "not the internet's business. These headers and cookie names are generated " +
-                    "behind the CDN and forwarded unchanged, so the abstraction is leaking. " +
-                    "Strip origin-identifying headers at the edge, or at the origin itself."
+                evidence = listOf(s.t("c.edgeServing", edge.value)) + originClues,
+                soWhat = s.t("l.edgeleak.s")
             )
         )
     }
@@ -332,22 +328,19 @@ class Investigator {
 
         return listOf(
             Lead(
-                hypothesis = "The stack is easy to identify, and there is no published way to report a problem",
+                id = LeadId.FINGERPRINTABLE_NO_CONTACT,
+                hypothesis = s.t("l.fingerprint.h"),
                 confidence = Confidence.MEDIUM,
                 severity = Severity.LOW,
                 evidence = listOf(
-                    "Identified from response metadata: ${profile.stack.joinToString(", ")}",
+                    s.t("c.identifiedStack", profile.stack.joinToString(", ")),
                     if (securityTxt?.found == true) {
-                        "security.txt exists but declares no Contact field"
+                        s.t("c.stxtNoContactField")
                     } else {
-                        "No security.txt at /.well-known/security.txt or /security.txt"
+                        s.t("c.noStxtFile")
                     }
                 ),
-                soWhat = "These two facts are only interesting together. The stack being " +
-                    "identifiable is normal and mostly harmless. The problem is the asymmetry: " +
-                    "a researcher who notices something wrong has nowhere to send it, so the " +
-                    "report either goes nowhere or goes public. Publishing an RFC 9116 " +
-                    "security.txt with a monitored Contact costs very little."
+                soWhat = s.t("l.fingerprint.s")
             )
         )
     }
@@ -359,29 +352,19 @@ class Investigator {
 
         val contacts = evidence.securityTxt?.contacts.orEmpty()
         val clues = mutableListOf(
-            if (days < 0) {
-                "Certificate expired ${-days} day(s) ago"
-            } else {
-                "Certificate expires in $days day(s)"
-            }
+            if (days < 0) s.t("c.certExpiredAgo", -days) else s.t("c.certExpiresIn", days)
         )
-        tls.certIssuer?.let { clues += "Issued by $it" }
-        if (contacts.isEmpty()) clues += "No published security contact to notify"
+        tls.certIssuer?.let { clues += s.t("c.issuedBy", it) }
+        if (contacts.isEmpty()) clues += s.t("c.noSecurityContact")
 
         return listOf(
             Lead(
-                hypothesis = if (days < 0) {
-                    "The certificate has already lapsed"
-                } else {
-                    "The certificate is close to expiry"
-                },
+                id = LeadId.CERTIFICATE_EXPIRY,
+                hypothesis = s.t(if (days < 0) "l.cert.h.expired" else "l.cert.h.expiring"),
                 confidence = Confidence.HIGH,
                 severity = if (days < 7) Severity.HIGH else Severity.MEDIUM,
                 evidence = clues,
-                soWhat = "Renewal is routine, so a short remaining life is mainly a signal about " +
-                    "automation: either renewal is automated and this is fine, or it is manual " +
-                    "and will eventually be missed. Check whether ACME renewal is actually " +
-                    "running rather than just renewing it by hand this once."
+                soWhat = s.t("l.cert.s")
             )
         )
     }
@@ -393,19 +376,16 @@ class Investigator {
 
         return listOf(
             Lead(
-                hypothesis = "Modern TLS is available, but the deprecated versions were never switched off",
+                id = LeadId.TLS_DOWNGRADE_SURFACE,
+                hypothesis = s.t("l.downgrade.h"),
                 confidence = Confidence.HIGH,
                 severity = Severity.HIGH,
                 evidence = listOf(
-                    "Accepted: ${accepted.joinToString(", ")}",
-                    "Deprecated versions still negotiated: ${legacy.joinToString(", ")}",
-                    "A modern client would use ${accepted.last()}"
+                    s.t("c.acceptedVersions", accepted.joinToString(", ")),
+                    s.t("c.deprecatedNegotiated", legacy.joinToString(", ")),
+                    s.t("c.modernClientUses", accepted.last())
                 ),
-                soWhat = "Because current clients already negotiate the strong version, leaving " +
-                    "TLS 1.0/1.1 enabled buys almost no real compatibility, while keeping the " +
-                    "older protocols' weaknesses reachable. This pattern usually means the " +
-                    "config was upgraded by adding new versions rather than by replacing the " +
-                    "list. Set a minimum version of TLS 1.2."
+                soWhat = s.t("l.downgrade.s")
             )
         )
     }
@@ -417,16 +397,15 @@ class Investigator {
 
         return listOf(
             Lead(
-                hypothesis = "The negotiated cipher suite uses dated primitives",
+                id = LeadId.WEAK_CIPHER,
+                hypothesis = s.t("l.weakcipher.h"),
                 confidence = Confidence.MEDIUM,
                 severity = Severity.MEDIUM,
                 evidence = listOf(
-                    "Negotiated suite: $suite",
-                    "Dated elements: ${markers.joinToString(", ")}"
+                    s.t("c.negotiatedSuite", suite),
+                    s.t("c.datedElements", markers.joinToString(", "))
                 ),
-                soWhat = "This is what the server chose when talking to this device, so it is " +
-                    "the preference order that matters, not just the supported list. Prefer " +
-                    "AEAD suites (GCM or ChaCha20-Poly1305) and put them first."
+                soWhat = s.t("l.weakcipher.s")
             )
         )
     }
@@ -438,32 +417,31 @@ class Investigator {
         profile: TechProfile,
         leads: List<Lead>
     ): String {
-        if (leads.isEmpty()) {
-            return "Nothing in the collected metadata contradicted anything else, and no " +
-                "combination of observations formed a chain worth reporting. That is a " +
-                "statement about these passive signals only — it is not a clean bill of health " +
-                "for the application behind them."
-        }
+        if (leads.isEmpty()) return s.t("narr.nothing")
 
         val builder = StringBuilder()
-        builder.append("Examined ${evidence.host} over ${evidence.tls?.bestVersion ?: "HTTP"}")
+        builder.append(
+            s.t("narr.opening", evidence.host, evidence.tls?.bestVersion ?: s.t("narr.protoHttp"))
+        )
         if (profile.stack.isNotEmpty()) {
-            builder.append(", which presents as ${profile.stack.take(3).joinToString(", ")}")
+            builder.append(s.t("narr.stack", profile.stack.take(3).joinToString(", ")))
         }
         builder.append(". ")
 
         val top = leads.first()
-        builder.append("The thread most worth pulling: ${top.hypothesis.lowercase()} ")
-        builder.append("(${top.confidence.label.lowercase()}, drawn from ${top.evidence.size} observations). ")
+        builder.append(
+            s.t(
+                "narr.top",
+                top.hypothesis.replaceFirstChar { it.lowercase() },
+                s.t(top.confidence.key).lowercase(),
+                top.evidence.size
+            )
+        )
 
         val high = leads.count { it.severity == Severity.HIGH }
-        if (high > 1) {
-            builder.append("$high separate chains reached a high-severity conclusion, ")
-            builder.append("which usually points at one underlying cause rather than several. ")
-        }
-        builder.append(
-            "Each conclusion below lists the clues behind it — check the reasoning before acting on it."
-        )
+        if (high > 1) builder.append(s.t("narr.multiHigh", high))
+
+        builder.append(s.t("narr.closing"))
         return builder.toString()
     }
 }

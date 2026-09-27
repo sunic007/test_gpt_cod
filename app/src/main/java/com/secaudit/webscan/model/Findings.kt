@@ -1,18 +1,46 @@
 package com.secaudit.webscan.model
 
-/** Severity of a single finding, used for sorting and colouring in the UI. */
-enum class Severity(val label: String, val weight: Int) {
-    HIGH("High", 3),
-    MEDIUM("Medium", 2),
-    LOW("Low", 1),
-    INFO("Info", 0)
+/**
+ * Severity of a single finding, used for sorting and colouring in the UI.
+ * [key] resolves to the localised label; the enum itself is language-neutral.
+ */
+enum class Severity(val key: String, val weight: Int) {
+    HIGH("sev.high", 3),
+    MEDIUM("sev.medium", 2),
+    LOW("sev.low", 1),
+    INFO("sev.info", 0)
 }
 
 /** How strongly the collected evidence supports a correlated conclusion. */
-enum class Confidence(val label: String) {
-    HIGH("Strong"),
-    MEDIUM("Probable"),
-    LOW("Tentative")
+enum class Confidence(val key: String) {
+    HIGH("conf.high"),
+    MEDIUM("conf.medium"),
+    LOW("conf.low")
+}
+
+/** Grouping shown on a finding's chip. */
+enum class Category(val key: String) {
+    TRANSPORT("cat.transport"),
+    HEADERS("cat.headers"),
+    COOKIES("cat.cookies"),
+    TLS("cat.tls"),
+    DISCLOSURE("cat.disclosure"),
+    GENERAL("cat.general")
+}
+
+/**
+ * Stable identity of a correlated conclusion, independent of the display
+ * language. Tests and any future export format key off this rather than prose.
+ */
+enum class LeadId {
+    UNMAINTAINED,
+    COOKIE_PLAINTEXT_CHAIN,
+    NO_HARDENING_LAYER,
+    EDGE_ORIGIN_LEAK,
+    FINGERPRINTABLE_NO_CONTACT,
+    CERTIFICATE_EXPIRY,
+    TLS_DOWNGRADE_SURFACE,
+    WEAK_CIPHER
 }
 
 /**
@@ -25,7 +53,7 @@ data class Finding(
     val severity: Severity,
     val detail: String,
     val remediation: String,
-    val category: String = "General"
+    val category: Category = Category.GENERAL
 )
 
 /**
@@ -35,6 +63,7 @@ data class Finding(
  * [soWhat] explains the consequence.
  */
 data class Lead(
+    val id: LeadId,
     val hypothesis: String,
     val confidence: Confidence,
     val severity: Severity,

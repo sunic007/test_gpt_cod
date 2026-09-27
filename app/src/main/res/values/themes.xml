@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.WebSecAudit" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">#0B5FA5</item>
-        <item name="android:windowBackground">#F7F9FC</item>
+    <!-- Dark by design: the report is dense technical text on one consistent surface. -->
+    <style name="Theme.WebSecAudit" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#0E141B</item>
+        <item name="android:navigationBarColor">#070B10</item>
+        <item name="android:windowBackground">#070B10</item>
     </style>
 </resources>

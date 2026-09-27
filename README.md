@@ -2,7 +2,7 @@
 
 An Android app that runs a **passive, non-intrusive security assessment** of a
 web site, then correlates the observations into conclusions with a visible chain
-of reasoning.
+of reasoning. Interface in **Russian and English**, dark terminal styling.
 
 > ⚠️ **Use only on systems you own or are explicitly authorised to test.**
 > Scanning systems without permission may be illegal in your jurisdiction. The
@@ -69,6 +69,28 @@ CDN headers, `Link: wp-json`, and cookie names such as `PHPSESSID`,
 `JSESSIONID`, `laravel_session`, `csrftoken`), and lists the signal behind each
 conclusion.
 
+## Language
+
+The app ships in Russian and English and starts in the device's language. A
+`РУС / ENG` switch in the toolbar changes it at any time — including on a report
+that is already on screen, which is re-worded **instantly and without touching
+the network**, because collection (`WebScanner` → `RawObservations`) is kept
+separate from wording (`ReportBuilder`).
+
+Text lives in a key/template map (`i18n/`) rather than Android string resources,
+so the scanner and investigator stay free of Android dependencies and can be
+unit-tested on a plain JVM. `StringsParityTest` guards that choice: it fails if a
+key exists in one language but not the other, if a key's `%s`/`%d` placeholders
+differ between languages, or if a lead's prose was left untranslated.
+
+## Interface
+
+Dark-only, monospaced, laid out like a terminal report: a severity stripe down
+the left edge of each panel, `//` section markers, colour-coded severity chips,
+and a header-hygiene bar. Dark is deliberate rather than decorative — the report
+is dense technical text, and one consistent dark surface keeps the severity
+colours legible instead of fighting a light background.
+
 ## What it deliberately does NOT do
 
 By design this is a **defensive/awareness** tool, not an attack tool. It does not
@@ -99,14 +121,26 @@ unknown sources" enabled.
 
 ```
 app/src/main/java/com/secaudit/webscan/
-├── MainActivity.kt                # Compose UI + authorisation gate
-├── model/Findings.kt              # Finding / Lead / TlsInfo / SecurityTxt / ScanReport
-├── scanner/WebScanner.kt          # Orchestration + header, TLS and policy findings
-├── scanner/TlsProbe.kt            # Handshake-only protocol version profiling
-├── scanner/SecurityTxtCheck.kt    # RFC 9116 retrieval and parsing
-├── scanner/Investigator.kt        # Correlation: leads, evidence chains, tech profile
-└── ui/ScanViewModel.kt            # State and progress handling
+├── MainActivity.kt                # Compose UI, dark terminal styling, language switch
+├── i18n/
+│   ├── Strings.kt                 # Lang + key/template lookup
+│   ├── RuStrings.kt               # Russian
+│   └── EnStrings.kt               # English
+├── model/Findings.kt              # Finding / Lead / LeadId / TlsInfo / SecurityTxt / ScanReport
+├── scanner/
+│   ├── WebScanner.kt              # Collection → RawObservations (language-neutral)
+│   ├── ReportBuilder.kt           # Observations → a written report in one language
+│   ├── TlsProbe.kt                # Handshake-only protocol version profiling
+│   ├── SecurityTxtCheck.kt        # RFC 9116 retrieval and parsing
+│   └── Investigator.kt            # Correlation: leads, evidence chains, tech profile
+└── ui/ScanViewModel.kt            # State, progress and language handling
 ```
+
+## Tests
+
+35 unit tests cover the correlation rules and their negative cases, the report
+builder, and translation parity. They run on a plain JVM (no Android SDK
+required) as part of the CI build.
 
 ## Stack
 
