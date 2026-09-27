@@ -15,33 +15,44 @@ import org.json.JSONObject
  * domain is sent to the DoH resolver, which is noted in the app's privacy text.
  * Parsing is thin; the interpretation lives in [DnsAnalysis] so it can be tested.
  */
-class DnsCheck(private val client: OkHttpClient, private val resolver: String = DEFAULT_RESOLVER) {
+class DnsCheck(
+    private val client: OkHttpClient,
+    private val resolvers: List<String> = DEFAULT_RESOLVERS
+) {
 
     companion object {
-        const val DEFAULT_RESOLVER = "https://dns.google/resolve"
+        // Tried in order; if one DoH endpoint is blocked, the next is used.
+        val DEFAULT_RESOLVERS = listOf(
+            "https://dns.google/resolve",
+            "https://cloudflare-dns.com/dns-query"
+        )
         private const val TYPE_TXT = 16
         private const val TYPE_CAA = 257
     }
 
     suspend fun lookup(host: String): DnsInfo = withContext(Dispatchers.IO) {
-        try {
-            val caa = query(host, TYPE_CAA)
-            val apexTxt = query(host, TYPE_TXT)
-            val dmarcTxt = query("_dmarc.$host", TYPE_TXT)
-            DnsAnalysis.interpret(
-                caa = caa.data,
-                apexTxt = apexTxt.data,
-                dmarcTxt = dmarcTxt.data,
-                dnssecAuthenticated = apexTxt.authenticated || caa.authenticated
-            )
-        } catch (t: Throwable) {
-            DnsInfo(queried = true, error = t.message ?: "DNS lookup failed")
+        var lastError: String? = null
+        for (resolver in resolvers) {
+            try {
+                val caa = query(resolver, host, TYPE_CAA)
+                val apexTxt = query(resolver, host, TYPE_TXT)
+                val dmarcTxt = query(resolver, "_dmarc.$host", TYPE_TXT)
+                return@withContext DnsAnalysis.interpret(
+                    caa = caa.data,
+                    apexTxt = apexTxt.data,
+                    dmarcTxt = dmarcTxt.data,
+                    dnssecAuthenticated = apexTxt.authenticated || caa.authenticated
+                )
+            } catch (t: Throwable) {
+                lastError = t.message // try the next resolver
+            }
         }
+        DnsInfo(queried = true, error = lastError ?: "DNS lookup failed")
     }
 
     private class Answer(val data: List<String>, val authenticated: Boolean)
 
-    private fun query(name: String, type: Int): Answer {
+    private fun query(resolver: String, name: String, type: Int): Answer {
         val url = "$resolver?name=${name}&type=$type"
         val request = Request.Builder()
             .url(url)
