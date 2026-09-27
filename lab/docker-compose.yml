@@ -1,0 +1,24 @@
+# Local, intentionally-vulnerable practice lab.
+#
+# Everything here binds to 127.0.0.1 only, so the targets are reachable from your
+# own machine and nowhere else. Practise any Kali tooling you like against these
+# containers — it is your own hardware, so it is legal. Never point the same tools
+# at systems you do not own or are not explicitly authorised to test.
+#
+#   docker compose -f lab/docker-compose.yml up -d      # start
+#   docker compose -f lab/docker-compose.yml down       # stop and remove
+
+services:
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    container_name: lab-juice-shop
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: lab-dvwa
+    ports:
+      - "127.0.0.1:8080:80"
+    restart: unless-stopped

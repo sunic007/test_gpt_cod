@@ -18,6 +18,28 @@ object EnStrings : Strings() {
         "ui.action.export" to "SHARE",
         "ui.sec.history" to "HISTORY",
         "ui.history.clear" to "CLEAR ALL",
+
+        // ------------------------------------------------------------ lab screen
+        "ui.tab.audit" to "AUDIT",
+        "ui.tab.lab" to "LAB",
+        "lab.copy" to "COPY",
+        "lab.title" to "TRAINING LAB",
+        "lab.intro" to "A local, intentionally-vulnerable playground for practising security " +
+            "tooling legally — it runs on your own machine, against targets you own.",
+        "lab.warn.title" to "YOUR MACHINE ONLY",
+        "lab.warn.body" to "The lab removes the legality problem: you may run any tool, even the " +
+            "aggressive ones, against these containers because they are yours. Never point the " +
+            "same tools at systems you do not own or are not authorised to test.",
+        "lab.step1.title" to "1 · START THE LAB",
+        "lab.step1.body" to "Requires Docker. This starts OWASP Juice Shop and DVWA, bound to " +
+            "localhost only.",
+        "lab.targets.title" to "2 · LOCAL TARGETS",
+        "lab.targets.body" to "Open these in a browser, or point the Audit tab at localhost:3000.",
+        "lab.step2.title" to "3 · RUN TOOLS AT LOCALHOST",
+        "lab.step2.body" to "On your Kali box, aim the offensive tooling at your own containers.",
+        "lab.step3.title" to "4 · LEARN THE BUGS",
+        "lab.step3.body" to "The tools are the easy part; these walk through the vulnerabilities " +
+            "themselves.",
         "ui.lang.label" to "LANGUAGE",
         "ui.footer" to "The app reads only what the target publishes about itself: one page " +
             "request, handshake-only TLS probes, and the disclosure policy. Use it solely on " +

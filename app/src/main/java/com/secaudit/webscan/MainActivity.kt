@@ -53,7 +53,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -103,6 +105,7 @@ private fun AppScreen(viewModel: ScanViewModel) {
 
     var target by remember { mutableStateOf("") }
     var authorised by remember { mutableStateOf(false) }
+    var showLab by remember { mutableStateOf(false) }
 
     fun shareReport() {
         val text = viewModel.exportText() ?: return
@@ -157,6 +160,14 @@ private fun AppScreen(viewModel: ScanViewModel) {
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            TabBar(s, showLab) { showLab = it }
+            Spacer(Modifier.height(16.dp))
+
+            if (showLab) {
+                LabScreen(s)
+                return@Column
+            }
+
             AuthorizationPanel(s, authorised) { authorised = it }
 
             Spacer(Modifier.height(16.dp))
@@ -247,6 +258,124 @@ private fun AppScreen(viewModel: ScanViewModel) {
 }
 
 // ----------------------------------------------------------------- top-level UI
+
+@Composable
+private fun TabBar(s: Strings, showLab: Boolean, onSelect: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Term.Border, RoundedCornerShape(6.dp))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        TabPill(s.t("ui.tab.audit"), selected = !showLab, modifier = Modifier.weight(1f)) {
+            onSelect(false)
+        }
+        TabPill(s.t("ui.tab.lab"), selected = showLab, modifier = Modifier.weight(1f)) {
+            onSelect(true)
+        }
+    }
+}
+
+@Composable
+private fun TabPill(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .background(
+                if (selected) Term.Accent else Color.Transparent,
+                RoundedCornerShape(4.dp)
+            )
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            color = if (selected) Term.Bg else Term.TextDim,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            letterSpacing = 1.sp
+        )
+    }
+}
+
+private const val LAB_UP = "docker compose -f lab/docker-compose.yml up -d"
+private const val LAB_TARGETS = "http://localhost:3000   # OWASP Juice Shop\n" +
+    "http://localhost:8080   # DVWA (admin / password)"
+private const val LAB_TOOLS = "nmap -sV -p- 127.0.0.1\n" +
+    "whatweb http://localhost:3000\n" +
+    "nuclei -u http://localhost:3000\n" +
+    "testssl.sh http://localhost:8080"
+private const val LAB_LINKS = "https://pwning.owasp-juice.shop/\n" +
+    "https://portswigger.net/web-security\n" +
+    "https://owasp.org/www-project-top-ten/"
+
+@Composable
+private fun LabScreen(s: Strings) {
+    Panel(accent = Term.Accent) {
+        Label(s.t("lab.title"), Term.Accent)
+        Spacer(Modifier.height(10.dp))
+        Text(s.t("lab.intro"), style = MaterialTheme.typography.bodyMedium, color = Term.Text)
+    }
+    Spacer(Modifier.height(10.dp))
+
+    Panel(accent = Term.Medium) {
+        Label(s.t("lab.warn.title"), Term.Medium)
+        Spacer(Modifier.height(8.dp))
+        Text(s.t("lab.warn.body"), style = MaterialTheme.typography.bodyMedium, color = Term.Text)
+    }
+
+    LabStep(s, "lab.step1.title", "lab.step1.body", LAB_UP)
+    LabStep(s, "lab.targets.title", "lab.targets.body", LAB_TARGETS)
+    LabStep(s, "lab.step2.title", "lab.step2.body", LAB_TOOLS)
+    LabStep(s, "lab.step3.title", "lab.step3.body", LAB_LINKS)
+}
+
+@Composable
+private fun LabStep(s: Strings, titleKey: String, bodyKey: String, command: String) {
+    SectionHeader(s.t(titleKey))
+    Panel {
+        Text(s.t(bodyKey), style = MaterialTheme.typography.bodyMedium, color = Term.Text)
+        Spacer(Modifier.height(12.dp))
+        CommandBlock(s, command)
+    }
+    Spacer(Modifier.height(10.dp))
+}
+
+@Composable
+private fun CommandBlock(s: Strings, command: String) {
+    val clipboard = LocalClipboardManager.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Term.Bg, RoundedCornerShape(4.dp))
+            .border(1.dp, Term.Border, RoundedCornerShape(4.dp))
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "$ ",
+                color = Term.Accent,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                s.t("lab.copy"),
+                color = Term.Accent,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                modifier = Modifier
+                    .clickable { clipboard.setText(AnnotatedString(command)) }
+                    .padding(4.dp)
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(command, color = Term.Text, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+    }
+}
 
 @Composable
 private fun HistorySection(
