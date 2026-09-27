@@ -68,6 +68,7 @@ import com.secaudit.webscan.model.SecurityTxt
 import com.secaudit.webscan.model.Severity
 import com.secaudit.webscan.model.TechProfile
 import com.secaudit.webscan.model.TlsInfo
+import com.secaudit.webscan.ui.MatrixRain
 import com.secaudit.webscan.ui.ScanViewModel
 import com.secaudit.webscan.ui.theme.Term
 import com.secaudit.webscan.ui.theme.WebSecAuditTheme
