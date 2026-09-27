@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,7 +27,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -268,15 +271,52 @@ private fun AuthorizationPanel(s: Strings, checked: Boolean, onCheckedChange: (B
 
 @Composable
 private fun RunningView(message: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(18.dp),
-            strokeWidth = 2.dp,
-            color = Term.Accent
-        )
-        Spacer(Modifier.width(12.dp))
-        Mono(message, Term.TextDim)
+    val shape = RoundedCornerShape(6.dp)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(210.dp)
+            .clip(shape)
+            .background(Color(0xFF04070A))
+            .border(1.dp, Term.Border, shape)
+    ) {
+        MatrixRain(modifier = Modifier.matchParentSize(), running = true)
+
+        // A readable strip at the bottom keeps the progress line legible over the rain.
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Color(0xCC04070A))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BlinkingCursor()
+            Spacer(Modifier.width(8.dp))
+            Mono(message, Term.Accent, size = 13)
+        }
     }
+}
+
+@Composable
+private fun BlinkingCursor() {
+    val transition = rememberInfiniteTransition(label = "cursor")
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cursorAlpha"
+    )
+    Text(
+        "▮",
+        color = Term.Accent.copy(alpha = alpha),
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp
+    )
 }
 
 @Composable

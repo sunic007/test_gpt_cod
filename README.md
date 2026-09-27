@@ -91,6 +91,11 @@ and a header-hygiene bar. Dark is deliberate rather than decorative — the repo
 is dense technical text, and one consistent dark surface keeps the severity
 colours legible instead of fighting a light background.
 
+While a scan runs, the progress screen shows a **"digital rain"** animation
+(`MatrixRain`) — falling green glyphs with a bright head and fading tail — behind
+a blinking-cursor status line. It is purely decorative: it renders nothing about
+the target and stops the moment the scan finishes.
+
 ## What it deliberately does NOT do
 
 By design this is a **defensive/awareness** tool, not an attack tool. It does not
@@ -133,14 +138,19 @@ app/src/main/java/com/secaudit/webscan/
 │   ├── TlsProbe.kt                # Handshake-only protocol version profiling
 │   ├── SecurityTxtCheck.kt        # RFC 9116 retrieval and parsing
 │   └── Investigator.kt            # Correlation: leads, evidence chains, tech profile
-└── ui/ScanViewModel.kt            # State, progress and language handling
+├── ui/ScanViewModel.kt            # State, progress and language handling
+└── ui/MatrixRain.kt               # "Digital rain" scan animation
 ```
 
 ## Tests
 
-35 unit tests cover the correlation rules and their negative cases, the report
-builder, and translation parity. They run on a plain JVM (no Android SDK
-required) as part of the CI build.
+45 unit tests cover the correlation rules and their negative cases, the report
+builder, RFC 9116 parsing, SNI eligibility, and translation parity. They run on a
+plain JVM (no Android SDK required) as part of the CI build.
+
+A professional-style robustness review of the app itself — how it behaves against
+hostile or malformed server responses — is written up in
+[`docs/SELF_AUDIT.md`](docs/SELF_AUDIT.md).
 
 ## Stack
 

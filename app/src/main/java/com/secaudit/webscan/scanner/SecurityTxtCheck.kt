@@ -53,7 +53,7 @@ class SecurityTxtCheck(private val client: OkHttpClient) {
         null
     }
 
-    private fun parse(url: String, body: String): SecurityTxt {
+    internal fun parse(url: String, body: String): SecurityTxt {
         val fields = mutableMapOf<String, MutableList<String>>()
         body.lineSequence()
             .map { it.trim() }

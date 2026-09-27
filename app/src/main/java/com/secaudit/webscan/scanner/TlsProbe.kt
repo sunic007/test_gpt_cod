@@ -22,10 +22,29 @@ import javax.net.ssl.SSLSocketFactory
  */
 class TlsProbe {
 
-    private companion object {
+    companion object {
         /** Ascending, so the last success is the strongest version on offer. */
-        val CANDIDATES = listOf("TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3")
-        val TIMEOUT_MS = TimeUnit.SECONDS.toMillis(8).toInt()
+        private val CANDIDATES = listOf("TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3")
+        private val TIMEOUT_MS = TimeUnit.SECONDS.toMillis(8).toInt()
+
+        private val IPV4 = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
+        private val HOSTNAME = Regex(
+            "^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*$"
+        )
+
+        /**
+         * SNI carries a DNS name only. `SNIHostName` throws for an IP literal, a
+         * trailing dot, or a label with an underscore, which would otherwise make
+         * every handshake fail and mislabel a reachable host as refusing all TLS.
+         * When this returns false the probe simply omits SNI and still connects.
+         */
+        internal fun isValidSniHost(host: String): Boolean {
+            if (host.isBlank() || host.length > 253) return false
+            if (host.contains(':')) return false          // IPv6 literal
+            if (host.endsWith(".")) return false          // FQDN root, rejected by SNIHostName
+            if (IPV4.matches(host)) return false          // IPv4 literal
+            return HOSTNAME.matches(host)
+        }
     }
 
     suspend fun probe(host: String, port: Int): TlsInfo = withContext(Dispatchers.IO) {
@@ -90,8 +109,10 @@ class TlsProbe {
             socket.soTimeout = TIMEOUT_MS
             socket.connect(InetSocketAddress(host, port), TIMEOUT_MS)
             socket.enabledProtocols = arrayOf(version)
-            socket.sslParameters = socket.sslParameters.apply {
-                serverNames = listOf<SNIServerName>(SNIHostName(host))
+            if (isValidSniHost(host)) {
+                socket.sslParameters = socket.sslParameters.apply {
+                    serverNames = listOf<SNIServerName>(SNIHostName(host))
+                }
             }
             socket.startHandshake()
 
