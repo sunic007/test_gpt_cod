@@ -79,6 +79,41 @@ class WebScanner {
         val bodySample: String
     )
 
+    /** One GET, with headers, cookies and a capped HTML sample copied out. */
+    private fun fetchHead(url: String): Head {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", USER_AGENT)
+            .get()
+            .build()
+        return client.newCall(request).execute().use { response ->
+            val contentType = response.header("Content-Type").orEmpty()
+            val body = if (contentType.contains("html", ignoreCase = true)) {
+                runCatching { response.peekBody(MAX_HTML_BYTES).string() }.getOrDefault("")
+            } else {
+                ""
+            }
+            Head(
+                url = response.request.url,
+                status = response.code,
+                headers = response.headers.names()
+                    .associate { it.lowercase() to response.headers[it].orEmpty() },
+                cookies = response.headers.values("Set-Cookie"),
+                bodySample = body
+            )
+        }
+    }
+
+    /** True when the failure looks like TLS was tried against a plain-HTTP server. */
+    private fun isTlsMismatch(e: Throwable): Boolean {
+        if (e is javax.net.ssl.SSLException) return true
+        val msg = generateSequence(e as Throwable?) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return "tls" in msg || "ssl" in msg || "handshake" in msg || "plaintext" in msg
+    }
+
     /** Normalises user input into a valid absolute URL, defaulting to https://. */
     fun normalizeTarget(raw: String): String {
         val trimmed = raw.trim()
@@ -93,32 +128,26 @@ class WebScanner {
         s: Strings = EnStrings,
         onProgress: (String) -> Unit = {}
     ): RawObservations = withContext(Dispatchers.IO) {
+        val hadScheme = rawTarget.trim().let {
+            it.startsWith("http://", true) || it.startsWith("https://", true)
+        }
         val target = normalizeTarget(rawTarget)
         val started = System.currentTimeMillis()
 
         onProgress(s.t("prog.request", target))
-        val request = Request.Builder()
-            .url(target)
-            .header("User-Agent", USER_AGENT)
-            .get()
-            .build()
-
-        val head = client.newCall(request).execute().use { response ->
-            val contentType = response.header("Content-Type").orEmpty()
-            // Only HTML is worth sampling for mixed content, and only up to a cap.
-            val body = if (contentType.contains("html", ignoreCase = true)) {
-                runCatching { response.peekBody(MAX_HTML_BYTES).string() }.getOrDefault("")
+        val head = try {
+            fetchHead(target)
+        } catch (e: Exception) {
+            // A plain-HTTP server (e.g. a local lab) speaks HTTP to our auto-added
+            // https:// and the handshake fails. If the user did not pick a scheme,
+            // retry once over http:// so localhost targets just work.
+            if (!hadScheme && isTlsMismatch(e)) {
+                val httpUrl = target.replaceFirst("https://", "http://", ignoreCase = true)
+                onProgress(s.t("prog.request", httpUrl))
+                fetchHead(httpUrl)
             } else {
-                ""
+                throw e
             }
-            Head(
-                url = response.request.url,
-                status = response.code,
-                headers = response.headers.names()
-                    .associate { it.lowercase() to response.headers[it].orEmpty() },
-                cookies = response.headers.values("Set-Cookie"),
-                bodySample = body
-            )
         }
 
         val tls: TlsInfo? = if (head.url.isHttps) {
