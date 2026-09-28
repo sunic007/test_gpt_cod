@@ -30,6 +30,10 @@ object EnStrings : Strings() {
         "lab.warn.body" to "The lab removes the legality problem: you may run any tool, even the " +
             "aggressive ones, against these containers because they are yours. Never point the " +
             "same tools at systems you do not own or are not authorised to test.",
+        "lab.public.title" to "BEYOND LOCALHOST (AUTHORISED TARGETS)",
+        "lab.public.body" to "The Audit tab already scans any site you enter. For active practice " +
+            "off your own device, use targets whose owners publicly permit testing — listed below. " +
+            "Do not point active tools at any other external site.",
         "lab.phone.title" to "PHONE ONLY (TERMUX)",
         "lab.phone.body" to "No PC needed. Install Termux (from F-Droid), then run this to fetch " +
             "and start DSVW (Damn Small Vulnerable Web, a ready-made project by stamparm) on the " +

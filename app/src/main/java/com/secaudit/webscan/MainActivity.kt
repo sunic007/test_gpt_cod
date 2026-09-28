@@ -304,6 +304,11 @@ private const val LAB_TERMUX = "pkg install python git -y\n" +
     "git clone https://github.com/stamparm/DSVW\n" +
     "cd DSVW\n" +
     "python dsvw.py"
+private const val LAB_PUBLIC = "scanme.nmap.org              # Nmap: owner permits scanning\n" +
+    "http://testphp.vulnweb.com    # Acunetix test site (PHP)\n" +
+    "http://testhtml5.vulnweb.com  # Acunetix test site (HTML5)\n" +
+    "http://demo.testfire.net      # Altoro Mutual demo bank\n" +
+    "https://demo.owasp-juice.shop # Juice Shop demo (shared)"
 private const val LAB_UP = "docker compose -f lab/docker-compose.yml up -d"
 private const val LAB_TARGETS = "http://localhost:3000   # OWASP Juice Shop\n" +
     "http://localhost:8080   # DVWA (admin / password)"
@@ -330,6 +335,15 @@ private fun LabScreen(s: Strings) {
         Text(s.t("lab.warn.body"), style = MaterialTheme.typography.bodyMedium, color = Term.Text)
     }
 
+    // Beyond localhost — targets whose owners publicly authorise testing.
+    SectionHeader(s.t("lab.public.title"))
+    Panel(accent = Term.Accent2) {
+        Text(s.t("lab.public.body"), style = MaterialTheme.typography.bodyMedium, color = Term.Text)
+        Spacer(Modifier.height(12.dp))
+        CommandBlock(s, LAB_PUBLIC, prompt = false)
+    }
+    Spacer(Modifier.height(10.dp))
+
     LabStep(s, "lab.phone.title", "lab.phone.body", LAB_TERMUX)
 
     SectionHeader(s.t("lab.docker.title"))
@@ -355,7 +369,7 @@ private fun LabStep(s: Strings, titleKey: String, bodyKey: String, command: Stri
 }
 
 @Composable
-private fun CommandBlock(s: Strings, command: String) {
+private fun CommandBlock(s: Strings, command: String, prompt: Boolean = true) {
     val clipboard = LocalClipboardManager.current
     Column(
         Modifier
@@ -366,7 +380,7 @@ private fun CommandBlock(s: Strings, command: String) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "$ ",
+                if (prompt) "$ " else "",
                 color = Term.Accent,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,

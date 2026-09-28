@@ -8,7 +8,25 @@ A local, intentionally-vulnerable playground for practising security tooling
 > are yours. Never point the same tools at systems you do not own or lack written
 > authorisation to test.
 
-## Start it
+## Beyond localhost — authorised public targets
+
+The app's **Audit** tab (passive) works on any site you enter — that already
+covers "other than localhost". For **active** practice off your own device, use
+targets whose owners publicly permit testing:
+
+| Target | Use |
+| --- | --- |
+| `scanme.nmap.org` | Nmap's official host — the owner authorises port scanning |
+| `http://testphp.vulnweb.com` | Acunetix public test site (PHP/MySQL) |
+| `http://testhtml5.vulnweb.com` | Acunetix public test site (HTML5) |
+| `http://demo.testfire.net` | Altoro Mutual — deliberately vulnerable demo bank |
+| `https://demo.owasp-juice.shop` | Juice Shop public demo (shared instance) |
+
+Use each within its owner's stated terms, and don't hammer them. **Do not point
+active tools at any other external site** — that is the line between practising on
+a sanctioned range and attacking someone's system.
+
+## Start it (your own containers)
 
 Requires Docker.
 
