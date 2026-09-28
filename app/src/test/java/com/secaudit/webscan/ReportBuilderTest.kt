@@ -206,6 +206,105 @@ class ReportBuilderTest {
         assertTrue(report.findings.none { it.category == Category.DNS })
     }
 
+    private fun titles(report: com.secaudit.webscan.model.ScanReport) =
+        report.findings.joinToString("\n") { it.title }
+
+    @Test
+    fun `weak CSP directives are each flagged`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders + ("content-security-policy" to
+                    "default-src *; script-src 'unsafe-inline' 'unsafe-eval'")
+            )
+        )
+        val t = titles(report)
+        assertTrue(t.contains("'unsafe-inline'"))
+        assertTrue(t.contains("'unsafe-eval'"))
+        assertTrue(t.contains("wildcard"))
+        assertTrue(t.contains("base-uri"))
+    }
+
+    @Test
+    fun `a strong CSP raises no sub-findings`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders + ("content-security-policy" to
+                    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'")
+            )
+        )
+        val t = titles(report)
+        assertFalse(t.contains("unsafe"))
+        assertFalse(t.contains("wildcard"))
+        assertFalse(t.contains("base-uri"))
+    }
+
+    @Test
+    fun `HSTS quality is checked`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(headers = hardenedHeaders + ("strict-transport-security" to "max-age=3600"))
+        )
+        val t = titles(report)
+        assertTrue(t.contains("max-age is short"))
+        assertTrue(t.contains("includeSubDomains"))
+    }
+
+    @Test
+    fun `CORS credentials with a specific origin is high severity`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders + mapOf(
+                    "access-control-allow-origin" to "https://evil.example",
+                    "access-control-allow-credentials" to "true"
+                )
+            )
+        )
+        val f = report.findings.first { it.title.contains("credentials to a specific origin") }
+        assertEquals(Severity.HIGH, f.severity)
+        assertTrue(f.detail.contains("https://evil.example"))
+    }
+
+    @Test
+    fun `CORS wildcard alone is low`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(headers = hardenedHeaders + ("access-control-allow-origin" to "*"))
+        )
+        val f = report.findings.first { it.title.contains("any origin") }
+        assertEquals(Severity.LOW, f.severity)
+    }
+
+    @Test
+    fun `cookie prefix and samesite rules are enforced`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders,
+                cookies = listOf(
+                    "__Host-sid=x; Path=/; Domain=example.test",   // Domain breaks __Host-
+                    "__Secure-tok=y; HttpOnly",                     // no Secure
+                    "tracker=z; SameSite=None"                      // None without Secure
+                )
+            )
+        )
+        val t = titles(report)
+        assertTrue(t.contains("__Host-"))
+        assertTrue(t.contains("__Secure-"))
+        assertTrue(t.contains("SameSite=None"))
+    }
+
+    @Test
+    fun `deprecated headers are flagged`() {
+        val report = ReportBuilder(EnStrings).build(
+            observations(
+                headers = hardenedHeaders + mapOf(
+                    "public-key-pins" to "pin-sha256=\"abc\"; max-age=5184000",
+                    "x-xss-protection" to "1; mode=block"
+                )
+            )
+        )
+        val t = titles(report)
+        assertTrue(t.contains("Public-Key-Pins"))
+        assertTrue(t.contains("X-XSS-Protection"))
+    }
+
     @Test
     fun `grade reflects severity`() {
         val bad = ReportBuilder(EnStrings).build(

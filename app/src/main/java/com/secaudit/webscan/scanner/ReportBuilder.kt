@@ -23,6 +23,7 @@ class ReportBuilder(private val s: Strings = EnStrings) {
     fun build(raw: RawObservations): ScanReport {
         val findings = buildList {
             addAll(analyzeHeaders(raw))
+            addAll(analyzeAdvancedHeaders(raw))
             raw.tls?.let { addAll(analyzeTls(it)) }
             addAll(analyzeMixedContent(raw))
             addAll(analyzeSecurityTxt(raw.securityTxt))
@@ -147,6 +148,104 @@ class ReportBuilder(private val s: Strings = EnStrings) {
 
         return findings
     }
+
+    // ------------------------------------------------ deep header hardening
+
+    /**
+     * The pedantic layer: quality of the security headers that ARE present, plus
+     * CORS, cookie prefixes and deprecated headers. All read from the one response
+     * already fetched — no extra requests, nothing active.
+     */
+    private fun analyzeAdvancedHeaders(raw: RawObservations): List<Finding> {
+        val h = raw.headers
+        val findings = mutableListOf<Finding>()
+
+        // --- Content-Security-Policy quality (only when a CSP exists) ----------
+        val csp = h["content-security-policy"].orEmpty().lowercase()
+        if (csp.isNotBlank()) {
+            if (csp.contains("'unsafe-inline'")) {
+                findings += finding("f.cspinline", Severity.MEDIUM, Category.HEADERS)
+            }
+            if (csp.contains("'unsafe-eval'")) {
+                findings += finding("f.cspeval", Severity.MEDIUM, Category.HEADERS)
+            }
+            if (hasWildcardSource(csp)) {
+                findings += finding("f.cspwildcard", Severity.LOW, Category.HEADERS)
+            }
+            if (!csp.contains("base-uri")) {
+                findings += finding("f.cspbaseuri", Severity.LOW, Category.HEADERS)
+            }
+        }
+
+        // --- HSTS quality (only when HSTS exists) -----------------------------
+        val hsts = h["strict-transport-security"].orEmpty().lowercase()
+        if (hsts.isNotBlank()) {
+            val maxAge = Regex("max-age\\s*=\\s*(\\d+)").find(hsts)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+            if (maxAge < 15_552_000L) { // < 180 days
+                findings += finding(
+                    "f.hstsshort", Severity.LOW, Category.TRANSPORT,
+                    detailArgs = arrayOf(maxAge)
+                )
+            }
+            if (!hsts.contains("includesubdomains")) {
+                findings += finding("f.hstsnosub", Severity.LOW, Category.TRANSPORT)
+            }
+        }
+
+        // --- CORS -------------------------------------------------------------
+        val acao = h["access-control-allow-origin"].orEmpty().trim()
+        val acac = h["access-control-allow-credentials"].equals("true", true)
+        if (acao == "*" || (acao.isNotBlank() && acac)) {
+            if (acac && acao != "*" && acao.isNotBlank()) {
+                // Reflected/explicit origin WITH credentials — a real data-exposure risk.
+                findings += finding(
+                    "f.corscred", Severity.HIGH, Category.HEADERS,
+                    detailArgs = arrayOf(acao)
+                )
+            } else if (acao == "*") {
+                findings += finding("f.corswildcard", Severity.LOW, Category.HEADERS)
+            }
+        }
+
+        // --- Cookie prefixes & SameSite=None ----------------------------------
+        raw.cookies.forEach { cookie ->
+            val name = cookie.substringBefore('=').trim()
+            val lower = cookie.lowercase()
+            val secure = "secure" in lower
+            if (name.startsWith("__Host-") && !(secure && "path=/" in lower && "domain=" !in lower)) {
+                findings += finding(
+                    "f.cookiehost", Severity.MEDIUM, Category.COOKIES, titleArgs = arrayOf(name)
+                )
+            } else if (name.startsWith("__Secure-") && !secure) {
+                findings += finding(
+                    "f.cookiesecpfx", Severity.MEDIUM, Category.COOKIES, titleArgs = arrayOf(name)
+                )
+            }
+            if ("samesite=none" in lower && !secure) {
+                findings += finding(
+                    "f.cookiesamenone", Severity.MEDIUM, Category.COOKIES, titleArgs = arrayOf(name)
+                )
+            }
+        }
+
+        // --- Deprecated / dangerous headers -----------------------------------
+        if (!h["public-key-pins"].isNullOrBlank()) {
+            findings += finding("f.hpkp", Severity.MEDIUM, Category.HEADERS)
+        }
+        val xss = h["x-xss-protection"]
+        if (!xss.isNullOrBlank() && !xss.trim().startsWith("0")) {
+            findings += finding("f.xxss", Severity.LOW, Category.HEADERS)
+        }
+
+        return findings
+    }
+
+    /** A bare `*` used as a source in default-src or script-src. */
+    private fun hasWildcardSource(csp: String): Boolean =
+        csp.split(';').map { it.trim() }.any { directive ->
+            (directive.startsWith("default-src") || directive.startsWith("script-src")) &&
+                directive.split(Regex("\\s+")).drop(1).any { it == "*" }
+        }
 
     // -------------------------------------------------------------------- TLS
 

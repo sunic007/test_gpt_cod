@@ -184,6 +184,66 @@ object EnStrings : Strings() {
         "f.dnsprofile.spf" to "SPF: %s. ",
         "f.dnsprofile.dmarc" to "DMARC: %s.",
 
+        // ------------------------------------------------- deep header hardening
+        "f.cspinline.title" to "CSP allows 'unsafe-inline'",
+        "f.cspinline.detail" to "The Content-Security-Policy permits inline scripts/styles, which " +
+            "largely defeats CSP's XSS protection.",
+        "f.cspinline.fix" to "Remove 'unsafe-inline'; use nonces or hashes instead.",
+
+        "f.cspeval.title" to "CSP allows 'unsafe-eval'",
+        "f.cspeval.detail" to "'unsafe-eval' lets strings be executed as code (eval, new Function).",
+        "f.cspeval.fix" to "Remove 'unsafe-eval' and refactor code that needs it.",
+
+        "f.cspwildcard.title" to "CSP uses a wildcard source",
+        "f.cspwildcard.detail" to "default-src or script-src contains '*', allowing scripts from " +
+            "any origin.",
+        "f.cspwildcard.fix" to "Replace '*' with an explicit allow-list of origins.",
+
+        "f.cspbaseuri.title" to "CSP has no base-uri",
+        "f.cspbaseuri.detail" to "Without base-uri, an injected <base> tag can hijack relative URLs.",
+        "f.cspbaseuri.fix" to "Add base-uri 'self' (or 'none') to the policy.",
+
+        "f.hstsshort.title" to "HSTS max-age is short",
+        "f.hstsshort.detail" to "max-age is %d seconds; under ~6 months weakens the guarantee and " +
+            "blocks preload eligibility.",
+        "f.hstsshort.fix" to "Use max-age=31536000 (1 year).",
+
+        "f.hstsnosub.title" to "HSTS without includeSubDomains",
+        "f.hstsnosub.detail" to "Subdomains are not covered by the HSTS policy.",
+        "f.hstsnosub.fix" to "Add includeSubDomains (and preload once ready).",
+
+        "f.corscred.title" to "CORS exposes credentials to a specific origin",
+        "f.corscred.detail" to "Access-Control-Allow-Origin is \"%s\" with Allow-Credentials: " +
+            "true. If that origin is reflected from the request, any site can read authenticated " +
+            "responses.",
+        "f.corscred.fix" to "Never combine credentials with a reflected/loose origin; pin an exact, trusted origin.",
+
+        "f.corswildcard.title" to "CORS allows any origin (*)",
+        "f.corswildcard.detail" to "Access-Control-Allow-Origin: * lets any site read the response.",
+        "f.corswildcard.fix" to "Restrict to specific trusted origins if the data is not public.",
+
+        "f.cookiehost.title" to "Cookie \"%s\" breaks __Host- rules",
+        "f.cookiehost.detail" to "A __Host- cookie must be Secure, Path=/ and have no Domain.",
+        "f.cookiehost.fix" to "Set Secure; Path=/ and drop the Domain attribute.",
+
+        "f.cookiesecpfx.title" to "Cookie \"%s\" ignores its __Secure- prefix",
+        "f.cookiesecpfx.detail" to "A __Secure- cookie must carry the Secure attribute.",
+        "f.cookiesecpfx.fix" to "Add the Secure attribute.",
+
+        "f.cookiesamenone.title" to "Cookie \"%s\" is SameSite=None without Secure",
+        "f.cookiesamenone.detail" to "SameSite=None requires Secure; browsers reject it otherwise.",
+        "f.cookiesamenone.fix" to "Add Secure, or use SameSite=Lax/Strict.",
+
+        "f.hpkp.title" to "Deprecated Public-Key-Pins header",
+        "f.hpkp.detail" to "HPKP is deprecated and removed from browsers; a bad pin can lock out " +
+            "your own users.",
+        "f.hpkp.fix" to "Remove the Public-Key-Pins header.",
+
+        "f.xxss.title" to "X-XSS-Protection is enabled",
+        "f.xxss.detail" to "The legacy XSS auditor is removed from modern browsers and can " +
+            "introduce bugs; it should be 0 or absent.",
+        "f.xxss.fix" to "Set X-XSS-Protection: 0 (rely on CSP instead).",
+
         // --------------------------------------------------------------- progress
         "prog.start" to "Starting …",
         "prog.request" to "Requesting %s …",

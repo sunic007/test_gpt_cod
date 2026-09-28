@@ -186,6 +186,68 @@ object RuStrings : Strings() {
         "f.dnsprofile.spf" to "SPF: %s. ",
         "f.dnsprofile.dmarc" to "DMARC: %s.",
 
+        // ------------------------------------------------- deep header hardening
+        "f.cspinline.title" to "CSP разрешает 'unsafe-inline'",
+        "f.cspinline.detail" to "Content-Security-Policy допускает inline-скрипты/стили, что почти " +
+            "полностью сводит на нет защиту CSP от XSS.",
+        "f.cspinline.fix" to "Убери 'unsafe-inline'; используй nonce или хеши.",
+
+        "f.cspeval.title" to "CSP разрешает 'unsafe-eval'",
+        "f.cspeval.detail" to "'unsafe-eval' позволяет исполнять строки как код (eval, new Function).",
+        "f.cspeval.fix" to "Убери 'unsafe-eval' и перепиши код, которому он нужен.",
+
+        "f.cspwildcard.title" to "CSP использует источник-звёздочку",
+        "f.cspwildcard.detail" to "В default-src или script-src есть '*' — скрипты разрешены с " +
+            "любого источника.",
+        "f.cspwildcard.fix" to "Замени '*' на явный список доверенных источников.",
+
+        "f.cspbaseuri.title" to "В CSP нет base-uri",
+        "f.cspbaseuri.detail" to "Без base-uri внедрённый тег <base> может перехватить относительные " +
+            "URL.",
+        "f.cspbaseuri.fix" to "Добавь base-uri 'self' (или 'none').",
+
+        "f.hstsshort.title" to "Короткий max-age у HSTS",
+        "f.hstsshort.detail" to "max-age = %d сек.; меньше ~6 месяцев ослабляет гарантию и мешает " +
+            "попасть в preload.",
+        "f.hstsshort.fix" to "Ставь max-age=31536000 (1 год).",
+
+        "f.hstsnosub.title" to "HSTS без includeSubDomains",
+        "f.hstsnosub.detail" to "Поддомены не покрыты политикой HSTS.",
+        "f.hstsnosub.fix" to "Добавь includeSubDomains (и preload, когда будешь готов).",
+
+        "f.corscred.title" to "CORS отдаёт учётные данные конкретному источнику",
+        "f.corscred.detail" to "Access-Control-Allow-Origin = «%s» вместе с Allow-Credentials: " +
+            "true. Если этот источник отражается из запроса, любой сайт сможет читать " +
+            "аутентифицированные ответы.",
+        "f.corscred.fix" to "Никогда не сочетай credentials с отражённым/широким источником; укажи точный доверенный источник.",
+
+        "f.corswildcard.title" to "CORS разрешает любой источник (*)",
+        "f.corswildcard.detail" to "Access-Control-Allow-Origin: * позволяет любому сайту читать " +
+            "ответ.",
+        "f.corswildcard.fix" to "Ограничь конкретными доверенными источниками, если данные не публичные.",
+
+        "f.cookiehost.title" to "Cookie «%s» нарушает правила __Host-",
+        "f.cookiehost.detail" to "Cookie с префиксом __Host- должна быть Secure, Path=/ и без Domain.",
+        "f.cookiehost.fix" to "Поставь Secure; Path=/ и убери атрибут Domain.",
+
+        "f.cookiesecpfx.title" to "Cookie «%s» игнорирует свой префикс __Secure-",
+        "f.cookiesecpfx.detail" to "Cookie с префиксом __Secure- обязана иметь атрибут Secure.",
+        "f.cookiesecpfx.fix" to "Добавь атрибут Secure.",
+
+        "f.cookiesamenone.title" to "Cookie «%s» с SameSite=None без Secure",
+        "f.cookiesamenone.detail" to "SameSite=None требует Secure; иначе браузеры её отклоняют.",
+        "f.cookiesamenone.fix" to "Добавь Secure или используй SameSite=Lax/Strict.",
+
+        "f.hpkp.title" to "Устаревший заголовок Public-Key-Pins",
+        "f.hpkp.detail" to "HPKP устарел и удалён из браузеров; ошибочный pin может заблокировать " +
+            "доступ твоим же пользователям.",
+        "f.hpkp.fix" to "Удали заголовок Public-Key-Pins.",
+
+        "f.xxss.title" to "Включён X-XSS-Protection",
+        "f.xxss.detail" to "Устаревший XSS-аудитор удалён из современных браузеров и может вносить " +
+            "баги; значение должно быть 0 или отсутствовать.",
+        "f.xxss.fix" to "Поставь X-XSS-Protection: 0 (полагайся на CSP).",
+
         // --------------------------------------------------------------- progress
         "prog.start" to "Запуск …",
         "prog.request" to "Запрашиваю %s …",
