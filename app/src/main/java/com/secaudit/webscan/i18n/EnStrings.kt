@@ -483,6 +483,7 @@ object EnStrings : Strings() {
             "concise (3–5 sentences), no markdown. Finding: \"%s\". Details: %s. Suggested fix: %s.",
         "ai.title" to "AI EXPLANATIONS (GEMINI)",
         "ai.key.hint" to "Paste your Gemini API key",
+        "ai.model.hint" to "Model (default gemini-3.8-flash)",
         "ai.save" to "SAVE",
         "ai.saved" to "Key saved — an AI button now appears on each finding.",
         "ai.get" to "Get a free key at aistudio.google.com",

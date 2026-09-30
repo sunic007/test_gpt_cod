@@ -103,6 +103,7 @@ private fun AppScreen(viewModel: ScanViewModel) {
     val lang by viewModel.lang.collectAsState()
     val history by viewModel.history.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
+    val model by viewModel.model.collectAsState()
     val s = Strings.of(lang)
     val context = LocalContext.current
 
@@ -230,7 +231,10 @@ private fun AppScreen(viewModel: ScanViewModel) {
             }
 
             Spacer(Modifier.height(16.dp))
-            ApiKeyPanel(s, apiKey, viewModel::setApiKey)
+            ApiKeyPanel(s, apiKey, model, { k, m ->
+                viewModel.setApiKey(k)
+                viewModel.setModel(m)
+            })
 
             Spacer(Modifier.height(20.dp))
 
@@ -972,10 +976,28 @@ private sealed interface AiState {
 }
 
 @Composable
-private fun ApiKeyPanel(s: Strings, current: String, onSave: (String) -> Unit) {
+private fun ApiKeyPanel(
+    s: Strings,
+    currentKey: String,
+    currentModel: String,
+    onSave: (String, String) -> Unit
+) {
     var open by remember { mutableStateOf(false) }
-    var field by remember(current) { mutableStateOf(current) }
-    val set = current.isNotBlank()
+    var keyField by remember(currentKey) { mutableStateOf(currentKey) }
+    var modelField by remember(currentModel) { mutableStateOf(currentModel) }
+    val set = currentKey.isNotBlank()
+
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = Term.Accent,
+        unfocusedBorderColor = Term.Border,
+        focusedContainerColor = Term.Surface,
+        unfocusedContainerColor = Term.Surface,
+        cursorColor = Term.Accent
+    )
+    val fieldTextStyle = MaterialTheme.typography.bodyMedium.copy(
+        fontFamily = FontFamily.Monospace,
+        color = Term.Text
+    )
 
     Panel(accent = if (set) Term.Accent else Term.Border) {
         Row(
@@ -992,28 +1014,30 @@ private fun ApiKeyPanel(s: Strings, current: String, onSave: (String) -> Unit) {
         if (open) {
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
-                value = field,
-                onValueChange = { field = it },
+                value = keyField,
+                onValueChange = { keyField = it },
                 singleLine = true,
                 placeholder = { Mono(s.t("ai.key.hint"), Term.TextDim, size = 12) },
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Term.Text
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Term.Accent,
-                    unfocusedBorderColor = Term.Border,
-                    focusedContainerColor = Term.Surface,
-                    unfocusedContainerColor = Term.Surface,
-                    cursorColor = Term.Accent
-                ),
+                textStyle = fieldTextStyle,
+                colors = fieldColors,
+                shape = RoundedCornerShape(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = modelField,
+                onValueChange = { modelField = it },
+                singleLine = true,
+                placeholder = { Mono(s.t("ai.model.hint"), Term.TextDim, size = 12) },
+                textStyle = fieldTextStyle,
+                colors = fieldColors,
                 shape = RoundedCornerShape(6.dp),
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
-                    onClick = { onSave(field); open = false },
+                    onClick = { onSave(keyField, modelField); open = false },
                     shape = RoundedCornerShape(6.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Term.Accent,

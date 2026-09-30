@@ -20,18 +20,23 @@ import org.json.JSONObject
 class GeminiClient(private val client: OkHttpClient) {
 
     companion object {
-        /** Change here if Google renames the model. */
-        const val MODEL = "gemini-2.0-flash"
+        /** Default model; overridable by the user because Google renames them often. */
+        const val DEFAULT_MODEL = "gemini-3.8-flash"
         private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models"
         private val JSON = "application/json".toMediaType()
     }
 
-    suspend fun generate(apiKey: String, prompt: String): Result<String> =
+    suspend fun generate(
+        apiKey: String,
+        prompt: String,
+        model: String = DEFAULT_MODEL
+    ): Result<String> =
         withContext(Dispatchers.IO) {
             if (apiKey.isBlank()) return@withContext Result.failure(IllegalStateException("No API key"))
+            val chosen = model.ifBlank { DEFAULT_MODEL }
             try {
                 val request = Request.Builder()
-                    .url("$ENDPOINT/$MODEL:generateContent?key=$apiKey")
+                    .url("$ENDPOINT/$chosen:generateContent?key=$apiKey")
                     .post(requestBody(prompt).toRequestBody(JSON))
                     .build()
                 client.newCall(request).execute().use { response ->

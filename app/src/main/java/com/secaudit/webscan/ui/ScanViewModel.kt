@@ -36,6 +36,9 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private val _apiKey = MutableStateFlow(settings.apiKey())
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
+    private val _model = MutableStateFlow(settings.model())
+    val model: StateFlow<String> = _model.asStateFlow()
+
     private val _lang = MutableStateFlow(Lang.fromSystem())
     val lang: StateFlow<Lang> = _lang.asStateFlow()
 
@@ -112,6 +115,11 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         _apiKey.value = value.trim()
     }
 
+    fun setModel(value: String) {
+        settings.setModel(value)
+        _model.value = settings.model()
+    }
+
     val aiReady: Boolean get() = _apiKey.value.isNotBlank()
 
     /** Asks Gemini to explain the whole audit in plain language, in the current UI language. */
@@ -130,6 +138,6 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
             report.score,
             list
         )
-        return gemini.generate(_apiKey.value, prompt)
+        return gemini.generate(_apiKey.value, prompt, _model.value)
     }
 }
