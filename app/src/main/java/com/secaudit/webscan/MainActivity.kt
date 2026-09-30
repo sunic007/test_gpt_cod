@@ -26,8 +26,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -108,7 +106,6 @@ private fun AppScreen(viewModel: ScanViewModel) {
     val context = LocalContext.current
 
     var target by remember { mutableStateOf("") }
-    var authorised by remember { mutableStateOf(false) }
     var showLab by remember { mutableStateOf(false) }
 
     fun shareReport() {
@@ -172,10 +169,6 @@ private fun AppScreen(viewModel: ScanViewModel) {
                 return@Column
             }
 
-            AuthorizationPanel(s, authorised) { authorised = it }
-
-            Spacer(Modifier.height(16.dp))
-
             OutlinedTextField(
                 value = target,
                 onValueChange = { target = it },
@@ -210,7 +203,7 @@ private fun AppScreen(viewModel: ScanViewModel) {
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
-                    enabled = authorised && state !is ScanState.Running,
+                    enabled = state !is ScanState.Running,
                     onClick = { viewModel.scan(target) },
                     shape = RoundedCornerShape(6.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -503,36 +496,6 @@ private fun LangSwitch(current: Lang, onPick: (Lang) -> Unit) {
                     fontSize = 11.sp
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AuthorizationPanel(s: Strings, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Panel(accent = if (checked) Term.Accent else Term.Medium) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("!", color = Term.Medium, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(8.dp))
-            Label(s.t("ui.auth.title"), Term.Medium)
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(s.t("ui.auth.body"), style = MaterialTheme.typography.bodyMedium, color = Term.Text)
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = Term.Accent,
-                    checkmarkColor = Term.Bg,
-                    uncheckedColor = Term.BorderBright
-                )
-            )
-            Text(
-                s.t("ui.auth.check"),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Term.Text
-            )
         }
     }
 }

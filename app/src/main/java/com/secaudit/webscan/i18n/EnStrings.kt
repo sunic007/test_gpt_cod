@@ -7,10 +7,6 @@ object EnStrings : Strings() {
     override val map = mapOf(
         // ---------------------------------------------------------------- chrome
         "ui.app.title" to "WEB SECURITY AUDIT",
-        "ui.auth.title" to "AUTHORISATION REQUIRED",
-        "ui.auth.body" to "Scanning systems without the owner's permission may be illegal. " +
-            "Confirm that you own the target or hold written authorisation to test it.",
-        "ui.auth.check" to "I am authorised to test this target",
         "ui.target.label" to "TARGET",
         "ui.target.hint" to "example.com",
         "ui.action.scan" to "RUN AUDIT",
