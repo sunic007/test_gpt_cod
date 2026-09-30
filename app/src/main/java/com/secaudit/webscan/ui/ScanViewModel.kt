@@ -6,10 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.secaudit.webscan.ai.GeminiClient
 import com.secaudit.webscan.i18n.Lang
 import com.secaudit.webscan.i18n.Strings
-import com.secaudit.webscan.model.Finding
 import com.secaudit.webscan.model.HistoryEntry
 import com.secaudit.webscan.model.ScanReport
 import com.secaudit.webscan.model.ScanState
+import com.secaudit.webscan.model.Severity
 import com.secaudit.webscan.scanner.RawObservations
 import com.secaudit.webscan.scanner.ReportBuilder
 import com.secaudit.webscan.scanner.ReportExporter
@@ -114,15 +114,21 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     val aiReady: Boolean get() = _apiKey.value.isNotBlank()
 
-    /** Asks Gemini to explain one finding in plain language, in the current UI language. */
-    suspend fun explain(finding: Finding): Result<String> {
+    /** Asks Gemini to explain the whole audit in plain language, in the current UI language. */
+    suspend fun explainReport(): Result<String> {
+        val report = (_state.value as? ScanState.Done)?.report
+            ?: return Result.failure(IllegalStateException("No report to explain"))
         val s = strings
+        val actionable = report.findings.filter { it.severity != Severity.INFO }
+        val list = (actionable.ifEmpty { report.findings })
+            .joinToString("\n") { "[${s.t(it.severity.key)}] ${it.title}: ${it.detail}" }
         val prompt = s.t(
-            "ai.prompt",
+            "ai.prompt.all",
             s.t("ai.lang"),
-            finding.title,
-            finding.detail,
-            finding.remediation
+            report.finalUrl,
+            report.grade.label,
+            report.score,
+            list
         )
         return gemini.generate(_apiKey.value, prompt)
     }

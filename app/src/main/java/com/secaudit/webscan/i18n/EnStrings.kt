@@ -487,6 +487,11 @@ object EnStrings : Strings() {
         "ai.saved" to "Key saved — an AI button now appears on each finding.",
         "ai.get" to "Get a free key at aistudio.google.com",
         "ai.explain" to "EXPLAIN (AI)",
+        "ai.explainAll" to "EXPLAIN EVERYTHING (AI)",
+        "ai.prompt.all" to "You are a web-security assistant. In %s, explain this whole audit of " +
+            "%s (grade %s, score %d/100) to the site owner: summarise the main problems, why they " +
+            "matter, and the top priorities to fix first. Plain language, no markdown, group " +
+            "related issues. Findings:\n%s",
         "ai.explaining" to "Asking Gemini …",
         "ai.needkey" to "Add a Gemini key on the Audit tab to enable AI explanations."
     )

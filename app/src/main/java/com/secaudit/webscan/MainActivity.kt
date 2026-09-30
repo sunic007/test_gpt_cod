@@ -253,7 +253,7 @@ private fun AppScreen(viewModel: ScanViewModel) {
                     s = s,
                     report = current.report,
                     aiReady = apiKey.isNotBlank(),
-                    explain = viewModel::explain
+                    explainAll = viewModel::explainReport
                 )
             }
 
@@ -599,7 +599,7 @@ private fun ReportView(
     s: Strings,
     report: ScanReport,
     aiReady: Boolean,
-    explain: suspend (Finding) -> Result<String>
+    explainAll: suspend () -> Result<String>
 ) {
     Column {
         Panel {
@@ -618,6 +618,11 @@ private fun ReportView(
             }
             Spacer(Modifier.height(12.dp))
             ScoreBar(s, report.score)
+        }
+
+        if (aiReady) {
+            Spacer(Modifier.height(12.dp))
+            ExplainAllPanel(s, explainAll)
         }
 
         if (report.leads.isNotEmpty() || report.caseSummary.isNotBlank()) {
@@ -666,7 +671,7 @@ private fun ReportView(
 
         SectionHeader(s.t("ui.sec.observations"))
         report.findings.forEach {
-            FindingPanel(s, it, aiReady, explain)
+            FindingPanel(s, it)
             Spacer(Modifier.height(10.dp))
         }
     }
@@ -887,15 +892,7 @@ private fun SecurityTxtPanel(s: Strings, txt: SecurityTxt) {
 }
 
 @Composable
-private fun FindingPanel(
-    s: Strings,
-    finding: Finding,
-    aiReady: Boolean,
-    explain: suspend (Finding) -> Result<String>
-) {
-    val scope = rememberCoroutineScope()
-    var ai by remember(finding) { mutableStateOf<AiState>(AiState.Idle) }
-
+private fun FindingPanel(s: Strings, finding: Finding) {
     Panel(accent = severityColor(finding.severity)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Chip(s.t(finding.severity.key), severityColor(finding.severity))
@@ -917,45 +914,51 @@ private fun FindingPanel(
             Spacer(Modifier.height(10.dp))
             Mono(s.t("ui.fix", finding.remediation), Term.TextDim, size = 12)
         }
+    }
+}
 
-        if (aiReady) {
-            Spacer(Modifier.height(10.dp))
-            when (val current = ai) {
-                is AiState.Idle, is AiState.Error -> {
-                    Text(
-                        "✦ ${s.t("ai.explain")}",
-                        color = Term.Accent2,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        modifier = Modifier
-                            .clickable {
-                                ai = AiState.Loading
-                                scope.launch {
-                                    ai = explain(finding).fold(
-                                        onSuccess = { AiState.Done(it) },
-                                        onFailure = { AiState.Error(it.message ?: "error") }
-                                    )
-                                }
+/** The single "explain the whole audit" button and its result, shown atop the report. */
+@Composable
+private fun ExplainAllPanel(s: Strings, explainAll: suspend () -> Result<String>) {
+    val scope = rememberCoroutineScope()
+    var ai by remember { mutableStateOf<AiState>(AiState.Idle) }
+
+    Panel(accent = Term.Accent2) {
+        when (val current = ai) {
+            is AiState.Idle, is AiState.Error -> {
+                Text(
+                    "✦ ${s.t("ai.explainAll")}",
+                    color = Term.Accent2,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            ai = AiState.Loading
+                            scope.launch {
+                                ai = explainAll().fold(
+                                    onSuccess = { AiState.Done(it) },
+                                    onFailure = { AiState.Error(it.message ?: "error") }
+                                )
                             }
-                            .padding(vertical = 4.dp)
-                    )
-                    if (current is AiState.Error) {
-                        Spacer(Modifier.height(4.dp))
-                        Mono(current.message, Term.High, size = 11)
-                    }
+                        }
+                        .padding(vertical = 4.dp)
+                )
+                if (current is AiState.Error) {
+                    Spacer(Modifier.height(6.dp))
+                    Mono(current.message, Term.High, size = 11)
                 }
+            }
 
-                is AiState.Loading -> Mono(s.t("ai.explaining"), Term.TextDim, size = 12)
+            is AiState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Mono(s.t("ai.explaining"), Term.TextDim, size = 13)
+            }
 
-                is AiState.Done -> {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        current.text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Term.Accent2
-                    )
-                }
+            is AiState.Done -> {
+                Label(s.t("ai.explainAll"), Term.Accent2)
+                Spacer(Modifier.height(8.dp))
+                Text(current.text, style = MaterialTheme.typography.bodyMedium, color = Term.Text)
             }
         }
     }
