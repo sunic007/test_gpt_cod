@@ -67,6 +67,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation("junit:junit:4.13.2")
+    // Android's bundled org.json is a stub that throws in unit tests; the real
+    // implementation on the test classpath lets JSON-parsing code be tested.
+    testImplementation("org.json:json:20240303")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
