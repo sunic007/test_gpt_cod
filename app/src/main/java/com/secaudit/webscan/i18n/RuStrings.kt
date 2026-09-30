@@ -489,7 +489,7 @@ object RuStrings : Strings() {
             "Кратко (3–5 предложений), без markdown. Находка: «%s». Детали: %s. Как исправить: %s.",
         "ai.title" to "ИИ-ОБЪЯСНЕНИЯ (GEMINI)",
         "ai.key.hint" to "Вставь свой ключ Gemini API",
-        "ai.model.hint" to "Модель (по умолчанию gemini-3.8-flash)",
+        "ai.model.hint" to "Модель (auto = подобрать самому)",
         "ai.save" to "СОХРАНИТЬ",
         "ai.saved" to "Ключ сохранён — у каждой находки теперь есть кнопка ИИ.",
         "ai.get" to "Бесплатный ключ: aistudio.google.com",

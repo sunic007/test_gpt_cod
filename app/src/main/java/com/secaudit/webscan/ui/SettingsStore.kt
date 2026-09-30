@@ -21,8 +21,8 @@ class SettingsStore(context: Context) {
     }
 
     companion object {
-        /** Google renames models often; this is just the default and is user-overridable. */
-        const val DEFAULT_MODEL = "gemini-3.8-flash"
+        /** "auto" = discover a working model from the API; the user may pin a name. */
+        const val DEFAULT_MODEL = "auto"
         private const val KEY_GEMINI = "gemini_api_key"
         private const val KEY_MODEL = "gemini_model"
     }

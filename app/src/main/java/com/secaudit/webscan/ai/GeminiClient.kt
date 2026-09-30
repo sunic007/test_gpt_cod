@@ -20,11 +20,45 @@ import org.json.JSONObject
 class GeminiClient(private val client: OkHttpClient) {
 
     companion object {
-        /** Default model; overridable by the user because Google renames them often. */
-        const val DEFAULT_MODEL = "gemini-3.8-flash"
+        /** Static fallbacks used only if the live model list cannot be fetched. */
+        const val DEFAULT_MODEL = "gemini-flash-latest"
+        val FALLBACK_MODELS = listOf(
+            "gemini-flash-latest",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash"
+        )
         private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models"
         private val JSON = "application/json".toMediaType()
     }
+
+    /** One model as returned by the ListModels endpoint. */
+    data class ModelInfo(val name: String, val methods: List<String>)
+
+    /**
+     * Asks the API which models this key can use. Lets the app pick a working
+     * model automatically instead of hard-coding one Google may rename or retire.
+     */
+    suspend fun listModels(apiKey: String): Result<List<ModelInfo>> =
+        withContext(Dispatchers.IO) {
+            if (apiKey.isBlank()) return@withContext Result.failure(IllegalStateException("No API key"))
+            try {
+                val request = Request.Builder()
+                    .url("$ENDPOINT?key=$apiKey&pageSize=1000")
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        Result.failure(Exception(extractError(body, response.code)))
+                    } else {
+                        Result.success(parseModels(body))
+                    }
+                }
+            } catch (t: Throwable) {
+                Result.failure(t)
+            }
+        }
 
     suspend fun generate(
         apiKey: String,
@@ -85,6 +119,49 @@ class GeminiClient(private val client: OkHttpClient) {
         }.trim()
     } catch (t: Throwable) {
         ""
+    }
+
+    /** Parses the ListModels response into name + supported methods. */
+    internal fun parseModels(json: String): List<GeminiClient.ModelInfo> = try {
+        val models = JSONObject(json).optJSONArray("models") ?: JSONArray()
+        buildList {
+            for (i in 0 until models.length()) {
+                val m = models.optJSONObject(i) ?: continue
+                val name = m.optString("name").removePrefix("models/")
+                if (name.isBlank()) continue
+                val methodsArr = m.optJSONArray("supportedGenerationMethods") ?: JSONArray()
+                val methods = (0 until methodsArr.length()).map { methodsArr.optString(it) }
+                add(ModelInfo(name, methods))
+            }
+        }
+    } catch (t: Throwable) {
+        emptyList()
+    }
+
+    /**
+     * Orders the models that can do generateContent best-first for our use:
+     * prefer fast "flash" text models and newer versions, and push aside
+     * special-purpose variants (vision/embedding/tts/image/live/experimental).
+     */
+    internal fun pickCandidates(models: List<ModelInfo>, limit: Int = 5): List<String> {
+        fun score(name: String): Int {
+            val n = name.lowercase()
+            var s = 0
+            if ("flash" in n) s += 100
+            if ("lite" in n) s += 5
+            if ("latest" in n) s += 30
+            Regex("(\\d+(?:\\.\\d+)?)").find(n)?.groupValues?.get(1)?.toDoubleOrNull()
+                ?.let { s += (it * 4).toInt() }
+            listOf("vision", "embedding", "aqa", "tts", "image", "live", "exp", "thinking", "learnlm")
+                .forEach { if (it in n) s -= 500 }
+            return s
+        }
+        return models
+            .filter { "generateContent" in it.methods }
+            .map { it.name }
+            .distinct()
+            .sortedByDescending { score(it) }
+            .take(limit)
     }
 
     /** Pulls a human-readable message out of an error response, or falls back to the code. */

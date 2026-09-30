@@ -110,14 +110,38 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------- AI
 
+    /** Auto-discovered, best-first model candidates, cached per key. */
+    private var cachedCandidates: List<String>? = null
+
     fun setApiKey(value: String) {
         settings.setApiKey(value)
         _apiKey.value = value.trim()
+        cachedCandidates = null // a new key may allow different models
     }
 
     fun setModel(value: String) {
         settings.setModel(value)
         _model.value = settings.model()
+        cachedCandidates = null
+    }
+
+    /**
+     * The ordered models to try: a single one if the user pinned it, otherwise the
+     * list the API says this key can use (fast text models first), falling back to
+     * a static list if the model list cannot be fetched.
+     */
+    private suspend fun candidates(): List<String> {
+        val explicit = _model.value.trim()
+        if (explicit.isNotBlank() && !explicit.equals("auto", ignoreCase = true)) {
+            return listOf(explicit)
+        }
+        cachedCandidates?.let { return it }
+        val discovered = gemini.listModels(_apiKey.value)
+            .map { gemini.pickCandidates(it) }
+            .getOrDefault(emptyList())
+            .ifEmpty { com.secaudit.webscan.ai.GeminiClient.FALLBACK_MODELS }
+        cachedCandidates = discovered
+        return discovered
     }
 
     val aiReady: Boolean get() = _apiKey.value.isNotBlank()
@@ -138,6 +162,16 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
             report.score,
             list
         )
-        return gemini.generate(_apiKey.value, prompt, _model.value)
+        // Try candidates in order; move on when a model is unavailable or overloaded.
+        var last: Throwable? = null
+        for (m in candidates()) {
+            val result = gemini.generate(_apiKey.value, prompt, m)
+            result.onSuccess { return Result.success(it) }
+            last = result.exceptionOrNull()
+            val msg = last?.message.orEmpty().lowercase()
+            // An auth problem will fail for every model — stop early.
+            if ("api key" in msg || "api_key_invalid" in msg || "permission" in msg) break
+        }
+        return Result.failure(last ?: IllegalStateException("No usable model"))
     }
 }
