@@ -474,6 +474,20 @@ object EnStrings : Strings() {
             "usually points at one underlying cause rather than several. ",
         "narr.closing" to "Each conclusion below lists the clues behind it — check the " +
             "reasoning before acting on it.",
-        "narr.protoHttp" to "HTTP"
+        "narr.protoHttp" to "HTTP",
+
+        // ---------------------------------------------------------------- AI (Gemini)
+        "ai.lang" to "English",
+        "ai.prompt" to "You are a web-security assistant. In %s, explain this audit finding in " +
+            "simple terms for a site owner: what it means, why it matters, and how to fix it. Be " +
+            "concise (3–5 sentences), no markdown. Finding: \"%s\". Details: %s. Suggested fix: %s.",
+        "ai.title" to "AI EXPLANATIONS (GEMINI)",
+        "ai.key.hint" to "Paste your Gemini API key",
+        "ai.save" to "SAVE",
+        "ai.saved" to "Key saved — an AI button now appears on each finding.",
+        "ai.get" to "Get a free key at aistudio.google.com",
+        "ai.explain" to "EXPLAIN (AI)",
+        "ai.explaining" to "Asking Gemini …",
+        "ai.needkey" to "Add a Gemini key on the Audit tab to enable AI explanations."
     )
 }

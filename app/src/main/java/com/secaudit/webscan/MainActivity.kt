@@ -48,6 +48,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,6 +78,7 @@ import com.secaudit.webscan.ui.MatrixRain
 import com.secaudit.webscan.ui.ScanViewModel
 import com.secaudit.webscan.ui.theme.Term
 import com.secaudit.webscan.ui.theme.WebSecAuditTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -100,6 +102,7 @@ private fun AppScreen(viewModel: ScanViewModel) {
     val state by viewModel.state.collectAsState()
     val lang by viewModel.lang.collectAsState()
     val history by viewModel.history.collectAsState()
+    val apiKey by viewModel.apiKey.collectAsState()
     val s = Strings.of(lang)
     val context = LocalContext.current
 
@@ -226,6 +229,9 @@ private fun AppScreen(viewModel: ScanViewModel) {
                 ) { Mono(s.t("ui.action.reset"), Term.TextDim) }
             }
 
+            Spacer(Modifier.height(16.dp))
+            ApiKeyPanel(s, apiKey, viewModel::setApiKey)
+
             Spacer(Modifier.height(20.dp))
 
             when (val current = state) {
@@ -243,7 +249,12 @@ private fun AppScreen(viewModel: ScanViewModel) {
 
                 is ScanState.Running -> RunningView(current.message)
                 is ScanState.Error -> ErrorPanel(s, current.message)
-                is ScanState.Done -> ReportView(s, current.report)
+                is ScanState.Done -> ReportView(
+                    s = s,
+                    report = current.report,
+                    aiReady = apiKey.isNotBlank(),
+                    explain = viewModel::explain
+                )
             }
 
             Spacer(Modifier.height(28.dp))
@@ -584,7 +595,12 @@ private fun ErrorPanel(s: Strings, message: String) {
 // -------------------------------------------------------------------- report
 
 @Composable
-private fun ReportView(s: Strings, report: ScanReport) {
+private fun ReportView(
+    s: Strings,
+    report: ScanReport,
+    aiReady: Boolean,
+    explain: suspend (Finding) -> Result<String>
+) {
     Column {
         Panel {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -650,7 +666,7 @@ private fun ReportView(s: Strings, report: ScanReport) {
 
         SectionHeader(s.t("ui.sec.observations"))
         report.findings.forEach {
-            FindingPanel(s, it)
+            FindingPanel(s, it, aiReady, explain)
             Spacer(Modifier.height(10.dp))
         }
     }
@@ -871,7 +887,15 @@ private fun SecurityTxtPanel(s: Strings, txt: SecurityTxt) {
 }
 
 @Composable
-private fun FindingPanel(s: Strings, finding: Finding) {
+private fun FindingPanel(
+    s: Strings,
+    finding: Finding,
+    aiReady: Boolean,
+    explain: suspend (Finding) -> Result<String>
+) {
+    val scope = rememberCoroutineScope()
+    var ai by remember(finding) { mutableStateOf<AiState>(AiState.Idle) }
+
     Panel(accent = severityColor(finding.severity)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Chip(s.t(finding.severity.key), severityColor(finding.severity))
@@ -892,6 +916,114 @@ private fun FindingPanel(s: Strings, finding: Finding) {
             Divider()
             Spacer(Modifier.height(10.dp))
             Mono(s.t("ui.fix", finding.remediation), Term.TextDim, size = 12)
+        }
+
+        if (aiReady) {
+            Spacer(Modifier.height(10.dp))
+            when (val current = ai) {
+                is AiState.Idle, is AiState.Error -> {
+                    Text(
+                        "✦ ${s.t("ai.explain")}",
+                        color = Term.Accent2,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .clickable {
+                                ai = AiState.Loading
+                                scope.launch {
+                                    ai = explain(finding).fold(
+                                        onSuccess = { AiState.Done(it) },
+                                        onFailure = { AiState.Error(it.message ?: "error") }
+                                    )
+                                }
+                            }
+                            .padding(vertical = 4.dp)
+                    )
+                    if (current is AiState.Error) {
+                        Spacer(Modifier.height(4.dp))
+                        Mono(current.message, Term.High, size = 11)
+                    }
+                }
+
+                is AiState.Loading -> Mono(s.t("ai.explaining"), Term.TextDim, size = 12)
+
+                is AiState.Done -> {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        current.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Term.Accent2
+                    )
+                }
+            }
+        }
+    }
+}
+
+private sealed interface AiState {
+    data object Idle : AiState
+    data object Loading : AiState
+    data class Done(val text: String) : AiState
+    data class Error(val message: String) : AiState
+}
+
+@Composable
+private fun ApiKeyPanel(s: Strings, current: String, onSave: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    var field by remember(current) { mutableStateOf(current) }
+    val set = current.isNotBlank()
+
+    Panel(accent = if (set) Term.Accent else Term.Border) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { open = !open }
+        ) {
+            Text("✦ ", color = Term.Accent2, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Label(s.t("ai.title"), if (set) Term.Accent else Term.TextDim)
+            Spacer(Modifier.weight(1f))
+            Text(if (open) "▾" else "▸", color = Term.TextDim, fontFamily = FontFamily.Monospace)
+        }
+        if (open) {
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = field,
+                onValueChange = { field = it },
+                singleLine = true,
+                placeholder = { Mono(s.t("ai.key.hint"), Term.TextDim, size = 12) },
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Term.Text
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Term.Accent,
+                    unfocusedBorderColor = Term.Border,
+                    focusedContainerColor = Term.Surface,
+                    unfocusedContainerColor = Term.Surface,
+                    cursorColor = Term.Accent
+                ),
+                shape = RoundedCornerShape(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = { onSave(field); open = false },
+                    shape = RoundedCornerShape(6.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Term.Accent,
+                        contentColor = Term.Bg
+                    )
+                ) { Mono(s.t("ai.save"), bold = true) }
+                Spacer(Modifier.width(12.dp))
+                Mono(s.t("ai.get"), Term.TextDim, size = 11)
+            }
+            if (set) {
+                Spacer(Modifier.height(8.dp))
+                Mono(s.t("ai.saved"), Term.Low, size = 11)
+            }
         }
     }
 }

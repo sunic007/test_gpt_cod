@@ -3,8 +3,10 @@ package com.secaudit.webscan.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.secaudit.webscan.ai.GeminiClient
 import com.secaudit.webscan.i18n.Lang
 import com.secaudit.webscan.i18n.Strings
+import com.secaudit.webscan.model.Finding
 import com.secaudit.webscan.model.HistoryEntry
 import com.secaudit.webscan.model.ScanReport
 import com.secaudit.webscan.model.ScanState
@@ -12,15 +14,27 @@ import com.secaudit.webscan.scanner.RawObservations
 import com.secaudit.webscan.scanner.ReportBuilder
 import com.secaudit.webscan.scanner.ReportExporter
 import com.secaudit.webscan.scanner.WebScanner
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private val scanner = WebScanner()
     private val historyStore = HistoryStore(app)
+    private val settings = SettingsStore(app)
+    private val gemini = GeminiClient(
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(45, TimeUnit.SECONDS)
+            .build()
+    )
+
+    private val _apiKey = MutableStateFlow(settings.apiKey())
+    val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
     private val _lang = MutableStateFlow(Lang.fromSystem())
     val lang: StateFlow<Lang> = _lang.asStateFlow()
@@ -89,5 +103,27 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     fun reset() {
         lastObservations = null
         _state.value = ScanState.Idle
+    }
+
+    // ------------------------------------------------------------------- AI
+
+    fun setApiKey(value: String) {
+        settings.setApiKey(value)
+        _apiKey.value = value.trim()
+    }
+
+    val aiReady: Boolean get() = _apiKey.value.isNotBlank()
+
+    /** Asks Gemini to explain one finding in plain language, in the current UI language. */
+    suspend fun explain(finding: Finding): Result<String> {
+        val s = strings
+        val prompt = s.t(
+            "ai.prompt",
+            s.t("ai.lang"),
+            finding.title,
+            finding.detail,
+            finding.remediation
+        )
+        return gemini.generate(_apiKey.value, prompt)
     }
 }
